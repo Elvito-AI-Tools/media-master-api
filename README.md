@@ -1,11 +1,15 @@
 # Media Master API
 
-A powerful API for generating media content. This project provides asynchronous operations for various media transformations.
+A powerful API for generating media content. This project provides asynchronous operations for various media transformations, built with FastAPI and Docker.
+
+
+## Why use this API?
+
+It saves your time and money by using our API to generate long-form videos, audio and more, with few simple API call you can generate high-quality media content.
+Replace expensive services like JSON2Video, Creatomate, etc. with this API to generate high-quality media content.
 
 ## Features
 
-- Fully asynchronous API with job queue
-- Maximum queue size of 10 jobs
 - Image to video conversion with audio and captions
 - Text to speech conversion using Kokoro TTS (via external service)
 - Media transcription using Whisper
@@ -14,10 +18,8 @@ A powerful API for generating media content. This project provides asynchronous 
 
 ## Prerequisites
 
-- Python 3.7+
-- FFmpeg
 - AWS S3 account and credentials
-- Docker and Docker Compose (for running with Kokoro TTS)
+- Docker Desktop installed, you can install it from here: https://www.docker.com/products/docker-desktop/
 
 ## Installation
 
