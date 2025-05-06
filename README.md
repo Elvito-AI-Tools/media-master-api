@@ -76,7 +76,10 @@ For detailed API documentation, we've created a comprehensive documentation set 
   - [Video Routes Overview](./docs/video/README.md)
   - [Video Concatenation](./docs/video/concatenate.md)
 
-### Image to Video Conversion
+### API Examples
+
+<details>
+<summary><strong>Image to Video Conversion</strong></summary>
 
 Convert an image to a video with audio and captions:
 
@@ -121,8 +124,10 @@ Response (when completed):
   "error": null
 }
 ```
+</details>
 
-### Text to Speech Conversion (Kokoro TTS)
+<details>
+<summary><strong>Text to Speech Conversion (Kokoro TTS)</strong></summary>
 
 Convert text to speech using Kokoro TTS via an external service:
 
@@ -169,9 +174,10 @@ Response (when completed):
   "error": null
 }
 ``` 
+</details>
 
-
-### Media Transcription
+<details>
+<summary><strong>Media Transcription</strong></summary>
 
 Transcribe an audio or video file:
 
@@ -200,7 +206,6 @@ Response:
 Response (when completed):
 
 ```json
-
 {
   "job_id": "c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f",
   "status": "completed",
@@ -232,8 +237,11 @@ Response (when completed):
   },
   "error": null
 }
+```
+</details>
 
-### Videos Concatenation
+<details>
+<summary><strong>Videos Concatenation</strong></summary>
 
 Concatenate multiple videos:
 
@@ -258,7 +266,6 @@ Response:
 Response (when completed):
 
 ```json
-
 {
   "job_id": "c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f",
   "status": "completed",
@@ -268,4 +275,5 @@ Response (when completed):
   "error": null
 }
 ```
+</details>
 
