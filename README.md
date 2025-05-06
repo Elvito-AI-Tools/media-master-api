@@ -5,13 +5,14 @@ A powerful API for generating media content. This project provides asynchronous 
 
 ## Why use this API?
 
-It saves your time and money by using our API to generate long-form videos, audio and more, with few simple API call you can generate high-quality media content.
-Replace expensive services like JSON2Video, Creatomate, etc. with this API to generate high-quality media content.
+1. It saves your time and money by using our API to generate long-form videos, audio and more, with few simple API calls you can generate high-quality media content.
+
+2. Replace expensive services like JSON2Video, Creatomate, etc. with this API to generate high-quality media content.
 
 ## Features
 
-- Image to video conversion with audio and captions
-- Text to speech conversion using Kokoro TTS (via external service)
+- Image-to-video conversion with audio and captions
+- Text-to-speech conversion using Kokoro TTS
 - Media transcription using Whisper
 - Videos concatenation
 - Secure storage of generated media in AWS S3
@@ -56,6 +57,24 @@ docker-compose up --build
 ## API Documentation
 
 Interactive API documentation is available at http://localhost:8000/docs
+
+### Comprehensive Documentation
+
+For detailed API documentation, we've created a comprehensive documentation set in the [docs](./docs) directory:
+
+- **[API Overview](./docs/README.md)**: Complete overview of all API endpoints
+- **Image Processing**:
+  - [Image Routes Overview](./docs/image/README.md)
+  - [Image to Video Conversion](./docs/image/image-to-video.md)
+- **Audio Processing**:
+  - [Audio Routes Overview](./docs/audio/README.md)
+  - [Text to Speech Conversion](./docs/audio/text-to-speech.md)
+- **Media Processing**:
+  - [Media Routes Overview](./docs/media/README.md)
+  - [Media Transcription](./docs/media/transcription.md)
+- **Video Processing**:
+  - [Video Routes Overview](./docs/video/README.md)
+  - [Video Concatenation](./docs/video/concatenate.md)
 
 ### Image to Video Conversion
 
