@@ -271,30 +271,42 @@ class ImageToVideoRequest(BaseModel):
         description="Speed of zoom effect (0-100). Values between 5-20 produce the smoothest results."
     )
     
-    # Audio parameters (optional)
-    speech_text: Optional[str] = Field(
+    # Narrator audio parameters (optional)
+    narrator_speech_text: Optional[str] = Field(
         default=None,
         description="Text to convert to speech. If provided, a TTS audio will be added to the video."
     )
     voice: Optional[str] = Field(
         default="af_alloy",
-        description="The Kokoro voice to use for speech synthesis if speech_text is provided."
+        description="The Kokoro voice to use for speech synthesis if narrator_speech_text is provided."
     )
-    audio_url: Optional[AnyUrl] = Field(
+    narrator_audio_url: Optional[AnyUrl] = Field(
         default=None,
-        description="URL of an existing audio file to add to the video. Ignored if speech_text is provided."
+        description="URL of an existing audio file to add to the video as narration. Ignored if narrator_speech_text is provided."
     )
-    audio_vol: int = Field(
+    narrator_vol: int = Field(
         default=100,
         ge=0,
         le=100,
-        description="Volume level for the audio track (0-100)."
+        description="Volume level for the narrator audio track (0-100)."
+    )
+    
+    # Background music parameters (optional)
+    background_music_url: Optional[AnyUrl] = Field(
+        default=None,
+        description="URL of background music to add to the video. Can be a direct audio file or YouTube URL."
+    )
+    background_music_vol: int = Field(
+        default=20,
+        ge=0,
+        le=100,
+        description="Volume level for the background music track (0-100)."
     )
     
     # Caption parameters (optional)
     should_add_captions: bool = Field(
         default=False,
-        description="Whether to automatically add captions by transcribing the audio. If enabled, captions will be generated from either the speech_text or the audio content."
+        description="Whether to automatically add captions by transcribing the audio. If enabled, captions will be generated from either the narrator_speech_text or the narrator audio content."
     )
     caption_properties: Optional[VideoCaptionProperties] = Field(
         default=None,

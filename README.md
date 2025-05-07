@@ -90,14 +90,23 @@ Convert an image to a video with audio and captions:
 ```json
 {
   "image_url": "https://example.com/your-image.jpg",
-  "audio_url": "https://example.com/your-audio.mp3",
+  "video_length": 10.0,
+  "frame_rate": 30,
+  "zoom_speed": 10.0,
+  "narrator_speech_text": "This is the narrator speaking over this beautiful image",
+  "voice": "af_alloy",
+  "narrator_vol": 100,
+  "background_music_url": "https://example.com/background-music.mp3",
+  "background_music_vol": 20,
   "should_add_captions": true,
-  "captions_properties": {
+  "caption_properties": {
+    "max_words_per_line": 7,
     "font_size": 24,
-    "font_color": "#ffffff",
-    "background_color": "#000000",
+    "color": "#ffffff",
+    "background_color": "#00000080",
     "position": "bottom"
-  }
+  },
+  "match_length": "audio"
 }
 ```
 
@@ -121,11 +130,22 @@ Response (when completed):
     "has_audio": true,
     "has_captions": true,
     "final_video_url": "https://your-bucket.s3.region.amazonaws.com/videos/68d6fd45-5d30-4fcd-9588-c2c4ff4cce23.mp4",
-    "video_duration": 10.0
+    "video_duration": 15.2,
+    "srt_url": "https://your-bucket.s3.region.amazonaws.com/srt/68d6fd45-5d30-4fcd-9588-c2c4ff4cce23.srt"
   },
   "error": null
 }
 ```
+
+#### Audio Mixing Features
+
+The image-to-video endpoint supports sophisticated audio mixing:
+
+- **Dual Audio Sources**: Combine narrator audio (from TTS or direct file) with background music
+- **YouTube Support**: Use YouTube URLs directly as background music sources
+- **Volume Control**: Adjust volume levels independently for narrator and background music
+- **Format Compatibility**: Automatic handling of different audio formats and sample rates
+- **Fallback Mechanisms**: Multiple mixing methods ensure reliable audio processing
 </details>
 
 <details>

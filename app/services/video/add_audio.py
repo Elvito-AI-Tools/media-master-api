@@ -16,10 +16,10 @@ import time
 import tempfile
 import logging
 import subprocess
-import re
 from typing import Dict, Any, Tuple, Optional
 
 from app.utils.media import download_media_file
+from app.utils.youtube import is_youtube_url, download_youtube_audio
 from app.services.s3 import s3_service
 
 # Configure logging
@@ -82,74 +82,11 @@ class AddAudioService:
             video_path, video_ext = await download_media_file(video_url)
             
             # Check if audio URL is from YouTube
-            youtube_pattern = r'(youtube\.com|youtu\.be)'
-            is_youtube_audio = bool(re.search(youtube_pattern, audio_url))
-            
-            if is_youtube_audio:
-                # Create a temporary file in /temp directory
-                temp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="temp")
-                audio_path = temp_file.name
-                temp_file.close()
-                
+            if is_youtube_url(audio_url):
                 logger.info(f"YouTube audio URL detected: {audio_url}")
-                logger.info(f"Downloading audio using yt-dlp directly to {audio_path}")
-                
-                # Verify audio_path is valid before proceeding
-                if not audio_path:
-                    raise RuntimeError("Failed to create temporary audio file path")
-                
-                logger.info(f"Temporary audio file path: {audio_path}")
-                
-                # Run yt-dlp to extract audio in MP3 format
-                cmd = [
-                    "yt-dlp",
-                    "-x",  # Extract audio
-                    "--audio-format", "mp3",
-                    # "--ffmpeg-location", "/usr/local/bin/",  # Specify FFmpeg location
-                    "--extract-audio",  # Make sure we're extracting audio
-                    "--audio-quality", "0",  # Best quality
-                    "--no-playlist",  # Don't download playlists
-                    "--no-continue",  # Don't resume partial downloads
-                    "--force-overwrites",  # Overwrite existing files
-                    "-o", audio_path,  # Use explicit path variable
-                    audio_url
-                ]
-
-                
-                logger.info(f"Executing yt-dlp command: {' '.join(cmd)}")
-
-                try:
-                    # Execute the command
-                    process_result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=300) 
-
-                    # Log yt-dlp output regardless of success/failure
-                    if process_result.stdout:
-                        logger.info(f"yt-dlp stdout:\n{process_result.stdout.strip()}")
-                    if process_result.stderr:
-                        logger.info(f"yt-dlp stderr:\n{process_result.stderr.strip()}")
-
-                    # Check if the file exists and has content, regardless of exit code
-                    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                        logger.info(f"Audio file successfully created at {audio_path} "
-                                  f"(Size: {os.path.getsize(audio_path)} bytes)")
-                    else:
-                        raise RuntimeError(f"yt-dlp failed to create audio file. "
-                                         f"Exit code: {process_result.returncode}, "
-                                         f"stderr: {process_result.stderr.strip()}")
-
-                except subprocess.TimeoutExpired as e:
-                    logger.error(f"yt-dlp command timed out after {e.timeout} seconds.")
-                    stdout_decoded = e.stdout.decode(errors='replace').strip() if e.stdout else "N/A"
-                    stderr_decoded = e.stderr.decode(errors='replace').strip() if e.stderr else "N/A"
-                    logger.error(f"yt-dlp stdout (if any):\n{stdout_decoded}")
-                    logger.error(f"yt-dlp stderr (if any):\n{stderr_decoded}")
-                    # if os.path.exists(audio_path):
-                    #     try:
-                    #         os.unlink(audio_path)
-                    #     except OSError as e_unlink:
-                    #         logger.warning(f"Could not remove temporary audio file {audio_path} after timeout: {e_unlink}")
-                    # raise RuntimeError(f"yt-dlp command timed out.") from e
-
+                audio_path, success = await download_youtube_audio(audio_url)
+                if not success:
+                    raise RuntimeError(f"Failed to download YouTube audio from {audio_url}")
             else:
                 # Download audio file normally
                 logger.info(f"Downloading audio from {audio_url}")

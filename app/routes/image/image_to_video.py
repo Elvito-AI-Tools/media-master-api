@@ -23,18 +23,21 @@ async def create_image_to_video_job(request: ImageToVideoRequest):
     processing time. It combines multiple steps into fewer FFmpeg operations.
     
     1. Converts an image to video with a Ken Burns zoom effect
-    2. Optionally generates audio from text or uses provided audio URL
-    3. Mixes the video and audio
-    4. Optionally adds captions to the video
+    2. Optionally generates narrator audio from text or uses provided narrator audio URL
+    3. Optionally adds background music (can be from YouTube)
+    4. Mixes the video, narrator audio, and background music
+    5. Optionally adds captions to the video
     
     Args:
         request: Comprehensive request with the following parameters:
             - image_url: URL of the image to convert to video
             - video_length, frame_rate, zoom_speed: Video parameters
-            - speech_text: Text to convert to speech (optional)
+            - narrator_speech_text: Text to convert to speech (optional)
             - voice: Voice to use for speech synthesis (optional)
-            - audio_url: URL of audio file to add (optional, ignored if speech_text is provided)
-            - audio_vol: Volume level for the audio track (0-100)
+            - narrator_audio_url: URL of audio file to add as narration (optional, ignored if narrator_speech_text is provided)
+            - narrator_vol: Volume level for the narrator audio track (0-100)
+            - background_music_url: URL of background music to add (optional, can be YouTube URL)
+            - background_music_vol: Volume level for the background music track (0-100, default: 20)
             - should_add_captions: Whether to automatically add captions by transcribing audio
             - caption_properties: Styling properties for captions (optional) including:
                 - max_words_per_line: Control how many words appear per line of captions (1-20, default: 10)
@@ -56,16 +59,21 @@ async def create_image_to_video_job(request: ImageToVideoRequest):
             "frame_rate": request.frame_rate,
             "zoom_speed": request.zoom_speed,
             "match_length": request.match_length,
-            "audio_vol": request.audio_vol,
+            "narrator_vol": request.narrator_vol,
             "should_add_captions": request.should_add_captions
         }
         
-        # Add optional parameters if provided
-        if request.speech_text:
-            params["speech_text"] = request.speech_text
+        # Add optional narrator audio parameters if provided
+        if request.narrator_speech_text:
+            params["narrator_speech_text"] = request.narrator_speech_text
             params["voice"] = request.voice
-        elif request.audio_url:
-            params["audio_url"] = str(request.audio_url)
+        elif request.narrator_audio_url:
+            params["narrator_audio_url"] = str(request.narrator_audio_url)
+        
+        # Add optional background music parameters if provided
+        if request.background_music_url:
+            params["background_music_url"] = str(request.background_music_url)
+            params["background_music_vol"] = request.background_music_vol
         
         if request.caption_properties:
             params["caption_properties"] = request.caption_properties.dict(

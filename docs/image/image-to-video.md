@@ -26,11 +26,13 @@ POST /v1/image/to-video
   "image_url": "https://example.com/image.jpg",
   "video_length": 10,
   "frame_rate": 30,
-  "zoom_speed": 1.0,
-  "speech_text": "This is optional text that will be converted to speech",
-  "voice": "en-US-Neural2-F",
-  "audio_url": "https://example.com/audio.mp3",
-  "audio_vol": 80,
+  "zoom_speed": 10.0,
+  "narrator_speech_text": "This is optional text that will be converted to speech",
+  "voice": "af_alloy",
+  "narrator_audio_url": "https://example.com/audio.mp3",
+  "narrator_vol": 100,
+  "background_music_url": "https://example.com/music.mp3",
+  "background_music_vol": 20,
   "should_add_captions": true,
   "caption_properties": {
     "max_words_per_line": 10,
@@ -48,13 +50,15 @@ POST /v1/image/to-video
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | image_url | string | Yes | URL of the image to convert to video |
-| video_length | number | Yes | Length of the output video in seconds |
+| video_length | number | Yes | Length of the output video in seconds (default: 10.0) |
 | frame_rate | number | No | Frame rate of the output video (default: 30) |
-| zoom_speed | number | No | Speed of the Ken Burns effect (0.5-2.0, default: 1.0) |
-| speech_text | string | No | Text to convert to speech (if provided, audio_url is ignored) |
-| voice | string | No | Voice ID to use for speech synthesis |
-| audio_url | string | No | URL of audio file to add (ignored if speech_text is provided) |
-| audio_vol | number | No | Volume level for the audio track (0-100, default: 80) |
+| zoom_speed | number | No | Speed of the Ken Burns effect (0-100, default: 10.0) |
+| narrator_speech_text | string | No | Text to convert to speech (if provided, narrator_audio_url is ignored) |
+| voice | string | No | Voice ID to use for speech synthesis (default: "af_alloy") |
+| narrator_audio_url | string | No | URL of narrator audio file (ignored if narrator_speech_text is provided) |
+| narrator_vol | number | No | Volume level for the narrator audio track (0-100, default: 100) |
+| background_music_url | string | No | URL of background music to add (can be a direct audio file or YouTube URL) |
+| background_music_vol | number | No | Volume level for the background music track (0-100, default: 20) |
 | should_add_captions | boolean | No | Whether to automatically add captions (default: false) |
 | caption_properties | object | No | Styling properties for captions |
 | caption_properties.max_words_per_line | number | No | Max words per caption line (1-20, default: 10) |
@@ -62,7 +66,19 @@ POST /v1/image/to-video
 | caption_properties.font_family | string | No | Font family for captions (default: Arial) |
 | caption_properties.color | string | No | Caption text color (default: #FFFFFF) |
 | caption_properties.position | string | No | Caption position (top, middle, bottom; default: bottom) |
-| match_length | string | No | Whether to match output length to 'audio' or 'video' (default: video) |
+| match_length | string | No | Whether to match output length to 'audio' or 'video' (default: audio) |
+
+### Audio Mixing Features
+
+The API supports sophisticated audio mixing capabilities:
+
+1. **Narrator Audio**: Can be provided directly via URL or generated from text using text-to-speech
+2. **Background Music**: Can be added from a direct URL or YouTube link
+3. **Volume Control**: Independent volume levels for narrator and background music
+4. **Format Compatibility**: Automatic handling of different audio formats and sample rates
+5. **Fallback Mechanisms**: Multiple mixing methods are attempted if the primary method fails
+
+When both narrator audio and background music are provided, they will be mixed with the specified volume levels. If mixing fails for any reason, the system will fall back to using only the narrator audio.
 
 ### Response
 
@@ -85,10 +101,12 @@ curl -X POST \
     "image_url": "https://example.com/mountain.jpg",
     "video_length": 15,
     "frame_rate": 30,
-    "zoom_speed": 1.2,
-    "speech_text": "Explore the breathtaking views of the mountain landscape",
-    "voice": "en-US-Neural2-F",
-    "audio_vol": 75,
+    "zoom_speed": 10.0,
+    "narrator_speech_text": "Explore the breathtaking views of the mountain landscape",
+    "voice": "af_alloy",
+    "background_music_url": "https://example.com/ambient_music.mp3",
+    "background_music_vol": 15,
+    "narrator_vol": 90,
     "should_add_captions": true,
     "match_length": "audio"
   }'
@@ -131,11 +149,11 @@ GET /v1/image/to-video/{job_id}
   "job_id": "j-123e4567-e89b-12d3-a456-426614174000",
   "status": "completed",
   "result": {
-    "output_url": "https://cdn.mediamaster.com/output/j-123e4567.mp4",
-    "duration": 15.5,
-    "size": 12500000,
-    "format": "mp4",
-    "resolution": "1280x720"
+    "final_video_url": "https://cdn.mediamaster.com/videos/j-123e4567.mp4",
+    "video_duration": 15.5,
+    "has_audio": true,
+    "has_captions": true,
+    "srt_url": "https://cdn.mediamaster.com/srt/j-123e4567.srt"
   },
   "error": null
 }
@@ -145,7 +163,7 @@ GET /v1/image/to-video/{job_id}
 
 | Status | Description |
 |--------|-------------|
-| queued | Job is in the queue waiting to be processed |
+| pending | Job is in the queue waiting to be processed |
 | processing | Job is currently being processed |
 | completed | Job has completed successfully |
 | failed | Job has failed with an error |

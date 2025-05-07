@@ -16,8 +16,9 @@ from typing import Dict, Any, Tuple, Optional, List
 
 from app.services.s3 import s3_service
 from app.services.audio.text_to_speech import generate_speech
-from app.utils.media import download_media_file
+from app.utils.media import download_media_file, download_subtitle_file
 from app.utils.download import download_image
+from app.utils.youtube import is_youtube_url, download_youtube_audio
 from app.services.media.transcription import transcription_service
 from app.utils.captions import (
     create_srt_from_text, 
@@ -303,10 +304,12 @@ class ImageToVideoService:
                 - video_length: Length of the output video in seconds
                 - frame_rate: Frame rate of the output video
                 - zoom_speed: Speed of the zoom effect (0-100)
-                - audio_url: URL of audio file to add (prioritized over speech_text)
-                - speech_text: Text to convert to speech (used only if audio_url is not provided)
-                - voice: Voice to use for speech synthesis (when using speech_text)
-                - audio_vol: Volume level for the audio track (0-100)
+                - narrator_audio_url: URL of narrator audio file to add (prioritized over narrator_speech_text)
+                - narrator_speech_text: Text to convert to speech (used only if narrator_audio_url is not provided)
+                - voice: Voice to use for speech synthesis (when using narrator_speech_text)
+                - narrator_vol: Volume level for the narrator audio track (0-100)
+                - background_music_url: URL of background music to add (can be YouTube URL)
+                - background_music_vol: Volume level for the background music track (0-100)
                 - should_add_captions: Whether to add captions
                 - caption_properties: Styling properties for captions (optional)
                 - match_length: Whether to match output length to 'audio' or 'video'
@@ -333,22 +336,23 @@ class ImageToVideoService:
             image_path = await download_image(image_url, temp_dir="temp")
             temp_files.append(image_path)
             
-            # Process audio
-            audio_path = None
+            # Process narrator audio
+            narrator_audio_path = None
+            background_music_path = None
             speech_text = None
             srt_path = None
             audio_duration = None
             
-            # Priority given to audio_url over speech_text
-            if params.get("audio_url"):
-                # Download existing audio
-                audio_url = params["audio_url"]
-                audio_path, _ = await download_media_file(audio_url)
-                temp_files.append(audio_path)
+            # Priority given to narrator_audio_url over narrator_speech_text
+            if params.get("narrator_audio_url"):
+                # Download existing narrator audio
+                narrator_audio_url = params["narrator_audio_url"]
+                narrator_audio_path, _ = await download_media_file(narrator_audio_url)
+                temp_files.append(narrator_audio_path)
                 
                 # Verify the downloaded audio file is valid
-                if not await self.verify_audio_file(audio_path):
-                    raise ValueError(f"Downloaded audio file is not valid: {audio_path}")
+                if not await self.verify_audio_file(narrator_audio_path):
+                    raise ValueError(f"Downloaded narrator audio file is not valid: {narrator_audio_path}")
                 
                 result["has_audio"] = True
                 
@@ -365,12 +369,12 @@ class ImageToVideoService:
                                 style = params["caption_properties"]["style"]
                         
                         # For highlight style and similar timed styles, we need word-level timestamps
-                        need_word_timestamps = style in ["highlight", "word_by_word"]
+                        need_word_timestamps = True
                         
                         # Verify the audio file exists before attempting transcription
-                        if not os.path.exists(audio_path):
-                            logger.error(f"External audio file not found for transcription: {audio_path}")
-                            raise FileNotFoundError(f"External audio file not found for transcription: {audio_path}")
+                        if not os.path.exists(narrator_audio_path):
+                            logger.error(f"External narrator audio file not found for transcription: {narrator_audio_path}")
+                            raise FileNotFoundError(f"External narrator audio file not found for transcription: {narrator_audio_path}")
                         
                         # Make a copy of the audio file for transcription to prevent it from being deleted
                         temp_dir = "temp"
@@ -380,16 +384,16 @@ class ImageToVideoService:
                         transcription_audio_path = os.path.join(temp_dir, f"transcribe_{uuid.uuid4()}.mp3")
                         try:
                             import shutil
-                            shutil.copy2(audio_path, transcription_audio_path)
-                            logger.info(f"Created copy of external audio for transcription: {transcription_audio_path}")
+                            shutil.copy2(narrator_audio_path, transcription_audio_path)
+                            logger.info(f"Created copy of external narrator audio for transcription: {transcription_audio_path}")
                             temp_files.append(transcription_audio_path)  # Add to cleanup list
                         except Exception as copy_err:
-                            logger.error(f"Failed to copy external audio for transcription: {str(copy_err)}")
+                            logger.error(f"Failed to copy external narrator audio for transcription: {str(copy_err)}")
                             # Fall back to using the original file if copy fails
-                            transcription_audio_path = audio_path
+                            transcription_audio_path = narrator_audio_path
                         
                         # Transcribe audio to get SRT
-                        logger.info(f"Transcribing audio for captions with style: {style}")
+                        logger.info(f"Transcribing narrator audio for captions with style: {style}")
                         transcription_result = await transcription_service.transcribe(
                             transcription_audio_path,
                             include_text=True,
@@ -411,7 +415,7 @@ class ImageToVideoService:
                                             "-v", "error", 
                                             "-show_entries", "format=duration", 
                                             "-of", "json", 
-                                            audio_path
+                                            narrator_audio_path
                                         ]
                                         audio_info_result = subprocess.run(
                                             audio_info_cmd,
@@ -445,29 +449,29 @@ class ImageToVideoService:
                                             max_words_per_line,
                                             style
                                         )
-                                        logger.info(f"Created custom {style} style subtitle file for external audio")
+                                        logger.info(f"Created custom {style} style subtitle file for external narrator audio")
                                 except Exception as sub_e:
                                     logger.error(f"Error creating custom subtitle: {str(sub_e)}")
                                     # Fall back to the standard SRT from transcription
-                                    srt_path = await caption_service.download_subtitle_file(transcription_result["srt_url"])
+                                    srt_path = await download_subtitle_file(transcription_result["srt_url"])
                                     logger.info("Falling back to standard SRT from transcription")
                             else:
                                 # For non-highlight styles, use highlight style as default
-                                srt_path = await caption_service.download_subtitle_file(transcription_result["srt_url"])
+                                srt_path = await download_subtitle_file(transcription_result["srt_url"])
                                 logger.info("Using highlight style as the default for subtitles")
                             
                             temp_files.append(srt_path)
                             result["has_captions"] = True
                             result["srt_url"] = transcription_result["srt_url"]
                     except Exception as e:
-                        logger.error(f"Error transcribing audio for captions: {e}")
+                        logger.error(f"Error transcribing narrator audio for captions: {e}")
                         # Continue without captions
                         logger.info("Continuing without captions")
             
-            # Only use speech_text if audio_url is not provided
-            elif params.get("speech_text"):
+            # Only use narrator_speech_text if narrator_audio_url is not provided
+            elif params.get("narrator_speech_text"):
                 # Generate speech from text
-                speech_text = params["speech_text"]
+                speech_text = params["narrator_speech_text"]
                 voice = params.get("voice", "af_alloy")
                 
                 # Generate audio data
@@ -488,32 +492,32 @@ class ImageToVideoService:
                     logger.info(f"Created temp directory: {temp_dir}")
                     
                 # Save to temp file
-                audio_path = os.path.join(temp_dir, f"speech_{uuid.uuid4()}.mp3")
+                narrator_audio_path = os.path.join(temp_dir, f"speech_{uuid.uuid4()}.mp3")
                 
                 try:
-                    with open(audio_path, "wb") as f:
+                    with open(narrator_audio_path, "wb") as f:
                         f.write(audio_data)
                         # Explicitly sync to ensure file is fully written to disk
                         f.flush()
                         os.fsync(f.fileno())
                     
                     # Verify the audio file was created successfully
-                    if not os.path.exists(audio_path):
-                        logger.error(f"Failed to create audio file at {audio_path} despite no exception")
-                        raise FileNotFoundError(f"Generated audio file not found: {audio_path}")
+                    if not os.path.exists(narrator_audio_path):
+                        logger.error(f"Failed to create narrator audio file at {narrator_audio_path} despite no exception")
+                        raise FileNotFoundError(f"Generated narrator audio file not found: {narrator_audio_path}")
                     
-                    file_size = os.path.getsize(audio_path)
-                    logger.info(f"Successfully saved audio file at {audio_path} with size: {file_size} bytes")
+                    file_size = os.path.getsize(narrator_audio_path)
+                    logger.info(f"Successfully saved narrator audio file at {narrator_audio_path} with size: {file_size} bytes")
                 except Exception as audio_write_err:
-                    logger.error(f"Error writing audio file: {str(audio_write_err)}")
-                    raise RuntimeError(f"Failed to write audio file: {str(audio_write_err)}")
+                    logger.error(f"Error writing narrator audio file: {str(audio_write_err)}")
+                    raise RuntimeError(f"Failed to write narrator audio file: {str(audio_write_err)}")
                 
                 # Verify the audio file is valid
-                if not await self.verify_audio_file(audio_path):
-                    raise ValueError(f"Generated audio file is not valid: {audio_path}")
+                if not await self.verify_audio_file(narrator_audio_path):
+                    raise ValueError(f"Generated narrator audio file is not valid: {narrator_audio_path}")
                 
                 # Add to temp_files after successful creation and verification
-                temp_files.append(audio_path)
+                temp_files.append(narrator_audio_path)
                 result["has_audio"] = True
                 
                 # Create SRT file from speech text if captions requested
@@ -524,7 +528,7 @@ class ImageToVideoService:
                         "-v", "error", 
                         "-show_entries", "format=duration", 
                         "-of", "json", 
-                        audio_path
+                        narrator_audio_path
                     ]
                     audio_info_result = subprocess.run(
                         audio_info_cmd,
@@ -551,70 +555,463 @@ class ImageToVideoService:
                     # For advanced caption styles, we might need word-level timestamps
                     need_word_timestamps = True
                     
-                        # Transcribe the generated audio to get word-level timestamps
+                    # Transcribe the generated audio to get word-level timestamps
                     try:
-                            # Verify the audio file exists before attempting transcription
-                            if not os.path.exists(audio_path):
-                                logger.error(f"Audio file not found for transcription: {audio_path}")
-                                raise FileNotFoundError(f"Audio file not found for transcription: {audio_path}")
-                                
-                            # Make a copy of the audio file for transcription to prevent it from being deleted
-                            transcription_audio_path = os.path.join(temp_dir, f"transcribe_{uuid.uuid4()}.mp3")
-                            try:
-                                import shutil
-                                shutil.copy2(audio_path, transcription_audio_path)
-                                logger.info(f"Created copy of audio file for transcription: {transcription_audio_path}")
-                                temp_files.append(transcription_audio_path)  # Add to cleanup list
-                            except Exception as copy_err:
-                                logger.error(f"Failed to copy audio file for transcription: {str(copy_err)}")
-                                # Fall back to using the original file if copy fails
-                                transcription_audio_path = audio_path
-                                
-                            logger.info(f"Transcribing generated speech for precise word timestamps with style: {style}")
-                            transcription_result = await transcription_service.transcribe(
-                                transcription_audio_path,
-                                include_text=True,
-                                include_srt=False,  # We'll create our own styled SRT
-                                word_timestamps=True,
-                                max_words_per_line=max_words_per_line
-                            )
+                        # Verify the audio file exists before attempting transcription
+                        if not os.path.exists(narrator_audio_path):
+                            logger.error(f"Narrator audio file not found for transcription: {narrator_audio_path}")
+                            raise FileNotFoundError(f"Narrator audio file not found for transcription: {narrator_audio_path}")
                             
-                            if "words" in transcription_result:
-                                # Create styled subtitles using word timestamps
-                                srt_path = await create_srt_from_word_timestamps(
-                                    transcription_result["words"],
-                                    audio_duration,
-                                    max_words_per_line,
-                                    style,
-                                    caption_properties=params.get("caption_properties")
-                                )
-                                logger.info(f"Created custom {style} style subtitle file for generated speech using word timestamps")
-                            else:
-                                # For unsupported styles, use highlight style
-                                srt_path = await create_srt_from_word_timestamps(
-                                    transcription_result["words"],
-                                    audio_duration,
-                                    max_words_per_line,
-                                    "highlight",
-                                    caption_properties=params.get("caption_properties")
-                                )
+                        # Make a copy of the audio file for transcription to prevent it from being deleted
+                        transcription_audio_path = os.path.join(temp_dir, f"transcribe_{uuid.uuid4()}.mp3")
+                        try:
+                            import shutil
+                            shutil.copy2(narrator_audio_path, transcription_audio_path)
+                            logger.info(f"Created copy of narrator audio file for transcription: {transcription_audio_path}")
+                            temp_files.append(transcription_audio_path)  # Add to cleanup list
+                        except Exception as copy_err:
+                            logger.error(f"Failed to copy narrator audio file for transcription: {str(copy_err)}")
+                            # Fall back to using the original file if copy fails
+                            transcription_audio_path = narrator_audio_path
                             
-                            temp_files.append(srt_path)
-                            result["has_captions"] = True
-                    except Exception as sub_e:
-                            logger.error(f"Error creating word-timed captions: {str(sub_e)}")
-                            # Fall back to highlight style without word timestamps
-                            srt_path = await create_srt_from_text(
-                                speech_text, 
-                                audio_duration, 
+                        logger.info(f"Transcribing generated speech for precise word timestamps with style: {style}")
+                        transcription_result = await transcription_service.transcribe(
+                            transcription_audio_path,
+                            include_text=True,
+                            include_srt=False,  # We'll create our own styled SRT
+                            word_timestamps=True,
+                            max_words_per_line=max_words_per_line
+                        )
+                        
+                        if "words" in transcription_result:
+                            # Create styled subtitles using word timestamps
+                            srt_path = await create_srt_from_word_timestamps(
+                                transcription_result["words"],
+                                audio_duration,
                                 max_words_per_line,
-                                "highlight"
+                                style,
+                                caption_properties=params.get("caption_properties")
                             )
-                            logger.info(f"Falling back to highlight style captions without word timestamps")
-
+                            logger.info(f"Created custom {style} style subtitle file for generated speech using word timestamps")
+                        else:
+                            # For unsupported styles, use highlight style
+                            srt_path = await create_srt_from_word_timestamps(
+                                transcription_result["words"],
+                                audio_duration,
+                                max_words_per_line,
+                                "highlight",
+                                caption_properties=params.get("caption_properties")
+                            )
+                        
+                        temp_files.append(srt_path)
+                        result["has_captions"] = True
+                    except Exception as sub_e:
+                        logger.error(f"Error creating word-timed captions: {str(sub_e)}")
+                        # Fall back to highlight style without word timestamps
+                        srt_path = await create_srt_from_text(
+                            speech_text, 
+                            audio_duration, 
+                            max_words_per_line,
+                            "highlight"
+                        )
+                        logger.info(f"Falling back to highlight style captions without word timestamps")
+                        
+                        temp_files.append(srt_path)
+                        result["has_captions"] = True
+            
+            # Process background music if provided
+            if params.get("background_music_url"):
+                background_music_url = params["background_music_url"]
+                background_music_vol = params.get("background_music_vol", 20)
+                
+                logger.info(f"Processing background music from {background_music_url}")
+                
+                # Check if it's a YouTube URL
+                if is_youtube_url(background_music_url):
+                    logger.info(f"Detected YouTube URL for background music: {background_music_url}")
+                    try:
+                        background_music_path, success = await download_youtube_audio(background_music_url)
+                        if not success:
+                            logger.error(f"Failed to download YouTube audio from {background_music_url}")
+                            raise ValueError(f"Failed to download YouTube audio from {background_music_url}")
+                    except Exception as yt_err:
+                        logger.error(f"Error downloading YouTube audio: {str(yt_err)}")
+                        # Continue without background music
+                        logger.warning("Continuing without background music due to download error")
+                        background_music_path = None
+                else:
+                    # Regular audio file download
+                    try:
+                        background_music_path, _ = await download_media_file(background_music_url)
+                    except Exception as dl_err:
+                        logger.error(f"Error downloading background music: {str(dl_err)}")
+                        # Continue without background music
+                        logger.warning("Continuing without background music due to download error")
+                        background_music_path = None
+                
+                # Only proceed with background music if we successfully downloaded it
+                if background_music_path:
+                    # Verify the downloaded audio file is valid
+                    if not await self.verify_audio_file(background_music_path):
+                        logger.error(f"Downloaded background music file is not valid: {background_music_path}")
+                        logger.warning("Continuing without background music due to invalid file")
+                        background_music_path = None
+                    else:
+                        temp_files.append(background_music_path)
+                        logger.info(f"Successfully processed background music: {background_music_path}")
+                
+                # If we have both narrator audio and valid background music, we need to mix them
+                if narrator_audio_path and background_music_path:
+                    logger.info("Mixing narrator audio and background music")
                     
-                    temp_files.append(srt_path)
-                    result["has_captions"] = True
+                    # Create a temporary file for the mixed audio
+                    temp_dir = "temp"
+                    if not os.path.exists(temp_dir):
+                        os.makedirs(temp_dir, exist_ok=True)
+                        
+                    mixed_audio_path = os.path.join(temp_dir, f"mixed_audio_{uuid.uuid4()}.m4a")
+                    
+                    # Get durations
+                    try:
+                        narrator_duration = self._get_media_duration(narrator_audio_path)
+                        background_duration = self._get_media_duration(background_music_path)
+                        
+                        logger.info(f"Narrator audio duration: {narrator_duration} seconds")
+                        logger.info(f"Background music duration: {background_duration} seconds")
+                        
+                        # Ensure paths are properly formatted and exist
+                        if not os.path.exists(narrator_audio_path):
+                            logger.error(f"Narrator audio file not found: {narrator_audio_path}")
+                            raise FileNotFoundError(f"Narrator audio file not found: {narrator_audio_path}")
+                            
+                        if not os.path.exists(background_music_path):
+                            logger.error(f"Background music file not found: {background_music_path}")
+                            raise FileNotFoundError(f"Background music file not found: {background_music_path}")
+                        
+                        # First, get audio format information for both files
+                        narrator_format_cmd = [
+                            "ffprobe",
+                            "-v", "error",
+                            "-select_streams", "a:0",
+                            "-show_entries", "stream=sample_rate,channels",
+                            "-of", "json",
+                            narrator_audio_path
+                        ]
+                        
+                        background_format_cmd = [
+                            "ffprobe",
+                            "-v", "error",
+                            "-select_streams", "a:0",
+                            "-show_entries", "stream=sample_rate,channels",
+                            "-of", "json",
+                            background_music_path
+                        ]
+                        
+                        try:
+                            narrator_format_result = subprocess.run(narrator_format_cmd, check=True, capture_output=True, text=True)
+                            background_format_result = subprocess.run(background_format_cmd, check=True, capture_output=True, text=True)
+                            
+                            narrator_format_info = json.loads(narrator_format_result.stdout)
+                            background_format_info = json.loads(background_format_result.stdout)
+                            
+                            # Choose a common format (prefer higher quality if available)
+                            target_sample_rate = "48000"  # Default to 48kHz
+                            target_channels = "2"  # Default to stereo
+                            
+                            if "streams" in narrator_format_info and len(narrator_format_info["streams"]) > 0:
+                                narrator_sample_rate = narrator_format_info["streams"][0].get("sample_rate", "48000")
+                                narrator_channels = narrator_format_info["streams"][0].get("channels", "2")
+                                logger.info(f"Narrator audio format: {narrator_sample_rate} Hz, {narrator_channels} channels")
+                            
+                            if "streams" in background_format_info and len(background_format_info["streams"]) > 0:
+                                background_sample_rate = background_format_info["streams"][0].get("sample_rate", "48000")
+                                background_channels = background_format_info["streams"][0].get("channels", "2")
+                                logger.info(f"Background music format: {background_sample_rate} Hz, {background_channels} channels")
+                            
+                            # Create temporary files for converted audio
+                            temp_narrator_path = os.path.join(temp_dir, f"temp_narrator_{uuid.uuid4()}.wav")
+                            temp_background_path = os.path.join(temp_dir, f"temp_background_{uuid.uuid4()}.wav")
+                            
+                            # Convert narrator audio to WAV with target format
+                            narrator_convert_cmd = [
+                                "ffmpeg",
+                                "-y",
+                                "-i", narrator_audio_path,
+                                "-ar", target_sample_rate,
+                                "-ac", target_channels,
+                                "-c:a", "pcm_s16le",  # Use uncompressed PCM for intermediate processing
+                                temp_narrator_path
+                            ]
+                            
+                            # Convert background music to WAV with target format
+                            background_convert_cmd = [
+                                "ffmpeg",
+                                "-y",
+                                "-i", background_music_path,
+                                "-ar", target_sample_rate,
+                                "-ac", target_channels,
+                                "-c:a", "pcm_s16le",  # Use uncompressed PCM for intermediate processing
+                                temp_background_path
+                            ]
+                            
+                            logger.info(f"Converting narrator audio to common format: {' '.join(narrator_convert_cmd)}")
+                            subprocess.run(narrator_convert_cmd, check=True, capture_output=True, text=True)
+                            
+                            logger.info(f"Converting background music to common format: {' '.join(background_convert_cmd)}")
+                            subprocess.run(background_convert_cmd, check=True, capture_output=True, text=True)
+                            
+                            # Add temporary files to cleanup list
+                            temp_files.append(temp_narrator_path)
+                            temp_files.append(temp_background_path)
+                            
+                            # Use M4A (AAC) output format instead of MP3 for better compatibility
+                            mixed_audio_path = os.path.join(temp_dir, f"mixed_audio_{uuid.uuid4()}.m4a")
+                            
+                            # Now mix the two compatible audio files
+                            cmd = [
+                                "ffmpeg",
+                                "-y",
+                                "-i", temp_narrator_path,
+                                "-stream_loop", "-1",  # Loop background music if needed
+                                "-i", temp_background_path,
+                                "-filter_complex",
+                                f"[0:a]volume={params.get('narrator_vol', 100)/100}[a1];"
+                                f"[1:a]volume={background_music_vol/100}[a2];"
+                                f"[a1][a2]amix=inputs=2:duration=first[aout]",
+                                "-map", "[aout]",
+                                "-c:a", "aac",
+                                "-b:a", "192k",
+                                mixed_audio_path
+                            ]
+                            
+                            logger.info(f"Running FFmpeg command to mix audio with compatible formats: {' '.join(cmd)}")
+                            
+                        except Exception as format_err:
+                            logger.error(f"Error getting audio format information: {str(format_err)}")
+                            # Fall back to simpler command without format detection
+                            
+                            # Use M4A (AAC) output format instead of MP3 for better compatibility
+                            mixed_audio_path = os.path.join(temp_dir, f"mixed_audio_{uuid.uuid4()}.m4a")
+                            
+                            cmd = [
+                                "ffmpeg",
+                                "-y",
+                                "-i", narrator_audio_path,
+                                "-stream_loop", "-1",  # Loop background music if needed
+                                "-i", background_music_path,
+                                "-filter_complex",
+                                # Use aresample to ensure compatible formats
+                                f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={params.get('narrator_vol', 100)/100}[a1];"
+                                f"[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={background_music_vol/100}[a2];"
+                                f"[a1][a2]amix=inputs=2:duration=first[aout]",
+                                "-map", "[aout]",
+                                "-c:a", "aac",
+                                "-b:a", "192k",
+                                mixed_audio_path
+                            ]
+                            logger.info(f"Running FFmpeg command with aresample: {' '.join(cmd)}")
+                        
+                        try:
+                            # Use subprocess.run with capture_output to get both stdout and stderr
+                            ffmpeg_result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                            
+                            # Log the output for debugging
+                            if ffmpeg_result.stdout:
+                                logger.debug(f"FFmpeg stdout: {ffmpeg_result.stdout}")
+                            if ffmpeg_result.stderr:
+                                # FFmpeg writes progress to stderr, so this is expected
+                                logger.debug(f"FFmpeg stderr (progress info): {ffmpeg_result.stderr}")
+                            
+                            if not os.path.exists(mixed_audio_path):
+                                logger.error(f"Mixed audio file was not created: {mixed_audio_path}")
+                                raise RuntimeError(f"FFmpeg failed to create output file: {mixed_audio_path}")
+                                
+                            if os.path.getsize(mixed_audio_path) == 0:
+                                logger.error(f"Mixed audio file is empty: {mixed_audio_path}")
+                                raise RuntimeError(f"FFmpeg created an empty output file: {mixed_audio_path}")
+                            
+                            # Use the mixed audio for the final video
+                            temp_files.append(mixed_audio_path)
+                            audio_path = mixed_audio_path
+                            logger.info(f"Successfully mixed narrator audio and background music to {mixed_audio_path} (Size: {os.path.getsize(mixed_audio_path)} bytes)")
+                            
+                            # Get audio duration for later use
+                            audio_info_cmd = [
+                                "ffprobe", 
+                                "-v", "error", 
+                                "-show_entries", "format=duration", 
+                                "-of", "json", 
+                                audio_path
+                            ]
+                            audio_info_result = subprocess.run(
+                                audio_info_cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            if audio_info_result.returncode == 0:
+                                audio_info = json.loads(audio_info_result.stdout)
+                                audio_duration = float(audio_info["format"]["duration"])
+                            else:
+                                # If we can't get duration, use narrator duration
+                                audio_duration = narrator_duration
+                        except subprocess.CalledProcessError as e:
+                            logger.error(f"FFmpeg mixing error: {e.stderr}")
+                            logger.warning("Trying alternative mixing method...")
+                            
+                            # Try a simpler mixing approach
+                            try:
+                                # Create a temporary file for the mixed audio with a different name
+                                alt_mixed_audio_path = os.path.join(temp_dir, f"alt_mixed_{uuid.uuid4()}.m4a")
+                                
+                                # Simpler command with explicit output format
+                                alt_cmd = [
+                                    "ffmpeg",
+                                    "-y",
+                                    "-i", narrator_audio_path,
+                                    "-i", background_music_path,
+                                    "-filter_complex",
+                                    f"[0:a]volume={params.get('narrator_vol', 100)/100}[a1];"
+                                    f"[1:a]volume={background_music_vol/100}[a2];"
+                                    f"[a1][a2]amerge=inputs=2[aout]",
+                                    "-map", "[aout]",
+                                    "-ac", "2",  # Force stereo output
+                                    "-ar", "48000",  # Force 48kHz sample rate
+                                    "-c:a", "aac",
+                                    "-b:a", "192k",
+                                    alt_mixed_audio_path
+                                ]
+                                
+                                logger.info(f"Running alternative FFmpeg command: {' '.join(alt_cmd)}")
+                                
+                                alt_ffmpeg_result = subprocess.run(alt_cmd, check=True, capture_output=True, text=True)
+                                
+                                if os.path.exists(alt_mixed_audio_path) and os.path.getsize(alt_mixed_audio_path) > 0:
+                                    temp_files.append(alt_mixed_audio_path)
+                                    audio_path = alt_mixed_audio_path
+                                    logger.info(f"Alternative mixing successful: {alt_mixed_audio_path} (Size: {os.path.getsize(alt_mixed_audio_path)} bytes)")
+                                else:
+                                    logger.error("Alternative mixing failed, falling back to narrator audio only")
+                                    audio_path = narrator_audio_path
+                            except Exception as alt_e:
+                                logger.error(f"Alternative mixing failed: {str(alt_e)}")
+                                
+                            # Try a third approach - two-pass method
+                            try:
+                                # Create a temporary file for the mixed audio with a different name
+                                third_mixed_audio_path = os.path.join(temp_dir, f"third_mixed_{uuid.uuid4()}.m4a")
+                                
+                                # First convert background music to match narrator format
+                                temp_bg_path = os.path.join(temp_dir, f"temp_bg_{uuid.uuid4()}.m4a")
+                                
+                                # Get narrator audio format
+                                format_cmd = [
+                                    "ffprobe",
+                                    "-v", "error",
+                                    "-select_streams", "a:0",
+                                    "-show_entries", "stream=sample_rate,channels",
+                                    "-of", "json",
+                                    narrator_audio_path
+                                ]
+                                
+                                format_result = subprocess.run(format_cmd, check=True, capture_output=True, text=True)
+                                format_info = json.loads(format_result.stdout)
+                                
+                                if "streams" in format_info and len(format_info["streams"]) > 0:
+                                    sample_rate = format_info["streams"][0].get("sample_rate", "44100")
+                                    channels = format_info["streams"][0].get("channels", "2")
+                                    
+                                    # Convert background music to match narrator format
+                                    convert_cmd = [
+                                        "ffmpeg",
+                                        "-y",
+                                        "-i", background_music_path,
+                                        "-ar", sample_rate,
+                                        "-ac", channels,
+                                        "-c:a", "aac",
+                                        temp_bg_path
+                                    ]
+                                    
+                                    logger.info(f"Converting background music format: {' '.join(convert_cmd)}")
+                                    subprocess.run(convert_cmd, check=True, capture_output=True, text=True)
+                                    
+                                    if os.path.exists(temp_bg_path) and os.path.getsize(temp_bg_path) > 0:
+                                        temp_files.append(temp_bg_path)
+                                        
+                                        # Now mix the two compatible audio files
+                                        mix_cmd = [
+                                            "ffmpeg",
+                                            "-y",
+                                            "-i", narrator_audio_path,
+                                            "-stream_loop", "-1",
+                                            "-i", temp_bg_path,
+                                            "-filter_complex",
+                                            f"[0:a]volume={params.get('narrator_vol', 100)/100}[a1];"
+                                            f"[1:a]volume={background_music_vol/100}[a2];"
+                                            f"[a1][a2]amix=inputs=2:duration=first[aout]",
+                                            "-map", "[aout]",
+                                            "-c:a", "aac",
+                                            "-b:a", "192k",
+                                            third_mixed_audio_path
+                                        ]
+                                        
+                                        logger.info(f"Running third FFmpeg command: {' '.join(mix_cmd)}")
+                                        third_ffmpeg_result = subprocess.run(mix_cmd, check=True, capture_output=True, text=True)
+                                        
+                                        if os.path.exists(third_mixed_audio_path) and os.path.getsize(third_mixed_audio_path) > 0:
+                                            temp_files.append(third_mixed_audio_path)
+                                            audio_path = third_mixed_audio_path
+                                            logger.info(f"Third mixing method successful: {third_mixed_audio_path} (Size: {os.path.getsize(third_mixed_audio_path)} bytes)")
+                                        else:
+                                            logger.error("Third mixing method failed to create a valid file")
+                                            audio_path = narrator_audio_path
+                                    else:
+                                        logger.error("Failed to convert background music format")
+                                        audio_path = narrator_audio_path
+                                else:
+                                    logger.error("Failed to get audio format information")
+                                    audio_path = narrator_audio_path
+                            except Exception as third_e:
+                                logger.error(f"Third mixing method failed: {str(third_e)}")
+                                # Fall back to using just the narrator audio
+                                logger.warning("Falling back to using only narrator audio without background music")
+                                audio_path = narrator_audio_path
+                    except Exception as e:
+                        logger.error(f"Error during audio mixing preparation: {str(e)}")
+                        # Fall back to using just the narrator audio
+                        logger.warning("Falling back to using only narrator audio due to mixing preparation error")
+                        audio_path = narrator_audio_path
+                elif narrator_audio_path:
+                    # Only narrator audio, no background music
+                    audio_path = narrator_audio_path
+                    # Audio duration should already be set from earlier in the code
+                elif background_music_path:
+                    # Only background music, no narrator
+                    audio_path = background_music_path
+                    
+                    # Get audio duration for later use
+                    audio_info_cmd = [
+                        "ffprobe", 
+                        "-v", "error", 
+                        "-show_entries", "format=duration", 
+                        "-of", "json", 
+                        audio_path
+                    ]
+                    audio_info_result = subprocess.run(
+                        audio_info_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    if audio_info_result.returncode == 0:
+                        audio_info = json.loads(audio_info_result.stdout)
+                        audio_duration = float(audio_info["format"]["duration"])
+                else:
+                    # No audio at all
+                    audio_path = None
+            else:
+                # No background music URL provided, just use narrator audio if available
+                audio_path = narrator_audio_path
             
             # Create the final video in one optimized operation
             caption_properties = params.get("caption_properties") if params.get("should_add_captions") else None
@@ -693,6 +1090,40 @@ class ImageToVideoService:
                         logger.warning(f"Failed to remove temporary file {file_path}: {e}")
                 elif file_path:
                     logger.warning(f"Temporary file not found during cleanup: {file_path}")
+                    
+    def _get_media_duration(self, media_path: str) -> float:
+        """
+        Get the duration of a media file in seconds using FFprobe.
+        
+        Args:
+            media_path: Path to the media file
+            
+        Returns:
+            Duration in seconds
+            
+        Raises:
+            RuntimeError: If the FFprobe operation fails
+        """
+        try:
+            # Use FFprobe to get the duration
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                media_path
+            ]
+            
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            duration = float(result.stdout.strip())
+            
+            return duration
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFprobe error: {e.stderr}")
+            raise RuntimeError(f"Failed to get media duration: {e.stderr}")
+        except Exception as e:
+            logger.error(f"Error getting media duration: {e}")
+            raise RuntimeError(f"Failed to get media duration: {str(e)}")
 
 # Create a singleton instance
 image_to_video_service = ImageToVideoService() 

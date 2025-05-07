@@ -24,6 +24,19 @@ This is particularly useful for:
 - Digital signage
 - Educational content
 
+### Advanced Audio Features
+
+The image-to-video endpoint includes sophisticated audio processing capabilities:
+
+- **Dual Audio Sources**: Combine narrator audio with background music
+- **Text-to-Speech Integration**: Generate narrator audio directly from text
+- **YouTube Support**: Use YouTube links as background music sources
+- **Volume Control**: Adjust volume levels independently for narrator and background music
+- **Format Compatibility**: Automatic handling of different audio formats and sample rates
+- **Fallback Mechanisms**: Multiple mixing methods ensure reliable audio processing
+
+These features allow you to create professional-quality videos with rich audio experiences without needing specialized editing software.
+
 ## Error Handling
 
 All image endpoints follow standard HTTP status codes:
