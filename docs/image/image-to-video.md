@@ -57,7 +57,7 @@ POST /v1/image/to-video
 | voice | string | No | Voice ID to use for speech synthesis (default: "af_alloy") |
 | narrator_audio_url | string | No | URL of narrator audio file (ignored if narrator_speech_text is provided) |
 | narrator_vol | number | No | Volume level for the narrator audio track (0-100, default: 100) |
-| background_music_url | string | No | URL of background music to add (can be a direct audio file or YouTube URL) |
+| background_music_url | string | No | URL of background music to add (can be a direct audio file URL or YouTube URL) |
 | background_music_vol | number | No | Volume level for the background music track (0-100, default: 20) |
 | should_add_captions | boolean | No | Whether to automatically add captions (default: false) |
 | caption_properties | object | No | Styling properties for captions |
