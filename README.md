@@ -15,6 +15,7 @@ A powerful API for generating media content. This project provides asynchronous 
 - Text-to-speech conversion using Kokoro TTS
 - Media transcription using Whisper
 - Videos concatenation
+- Add audio to videos with volume control and length matching
 - Secure storage of generated media in AWS S3
 
 ## Prerequisites
@@ -75,6 +76,7 @@ For detailed API documentation, we've created a comprehensive documentation set 
 - **Video Processing**:
   - [Video Routes Overview](./docs/video/README.md)
   - [Video Concatenation](./docs/video/concatenate.md)
+  - [Add Audio to Video](./docs/video/add_audio.md)
 
 ### API Examples
 
@@ -271,6 +273,49 @@ Response (when completed):
   "status": "completed",
   "result": {
     "url": "https://your-bucket.s3.region.amazonaws.com/videos/c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f.mp4"
+  },
+  "error": null
+}
+```
+</details>
+
+<details>
+<summary><strong>Add Audio to Video</strong></summary>
+
+Add audio to a video with volume control:
+
+1. Create a job (POST /v1/video/add-audio):
+
+```json
+{
+  "video_url": "https://example.com/your-video.mp4",
+  "audio_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "video_volume": 20,
+  "audio_volume": 80,
+  "match_length": "video"
+}
+```
+
+Response:
+
+```json
+{
+  "job_id": "c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f"
+}
+```
+
+2. Check job status (GET /v1/video/add-audio/{job_id})
+
+Response (when completed):
+
+```json
+{
+  "job_id": "c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f",
+  "status": "completed",
+  "result": {
+    "url": "https://your-bucket.s3.region.amazonaws.com/output/videos/mixed_video_c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f.mp4",
+    "path": "output/videos/mixed_video_c3d5e7f9-1a2b-3c4d-5e6f-7a8b9c0d1e2f.mp4",
+    "duration": 120.5
   },
   "error": null
 }

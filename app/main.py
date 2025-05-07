@@ -114,6 +114,10 @@ async def read_root():
                 "concatenate": {
                     "create_job": "/v1/video/concatenate",
                     "get_job_status": "/v1/video/concatenate/{job_id}"
+                },
+                "add_audio": {
+                    "create_job": "/v1/video/add-audio",
+                    "get_job_status": "/v1/video/add-audio/{job_id}"
                 }
             }
         }

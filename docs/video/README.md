@@ -8,6 +8,8 @@ This section documents all video-related endpoints provided by the Media Master 
 |----------|--------|-------------|
 | [/v1/video/concatenate](./concatenate.md) | POST | Concatenate multiple videos into a single video |
 | [/v1/video/concatenate/{job_id}](./concatenate.md#get-job-status) | GET | Get the status of a video concatenation job |
+| [/v1/video/add-audio](./add_audio.md) | POST | Add audio to a video with volume control |
+| [/v1/video/add-audio/{job_id}](./add_audio.md#get-job-status) | GET | Get the status of an add audio job |
 
 ## Common Use Cases
 
@@ -19,6 +21,16 @@ The video concatenation endpoint allows you to join multiple video files into a 
 - Creating compilations from shorter video segments
 - Merging different parts of a video that were recorded separately
 - Creating sequential video content from separate scenes or shots
+
+### Audio Addition
+
+The add audio endpoint allows you to add background music or other audio to videos. This is useful for:
+
+- Adding background music to silent videos
+- Replacing or enhancing existing audio tracks
+- Adding voiceovers to video content
+- Creating multimedia presentations with synchronized audio
+- Using YouTube audio sources directly with videos
 
 ## Supported Video Formats
 

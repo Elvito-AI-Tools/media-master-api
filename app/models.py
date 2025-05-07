@@ -17,6 +17,7 @@ class JobType(str, Enum):
     TEXT_TO_SPEECH = "text_to_speech"
     MEDIA_TRANSCRIPTION = "media_transcription"
     VIDEO_CONCATENATION = "video_concatenation"
+    VIDEO_ADD_AUDIO = "video_add_audio"
 
 
 class Job(BaseModel):
@@ -358,4 +359,52 @@ class VideoConcatenateResult(BaseModel):
     )
     path: str = Field(
         description="Storage path of the concatenated video in S3."
+    )
+
+
+class VideoAddAudioRequest(BaseModel):
+    """
+    Request model for adding audio to a video.
+    
+    This model represents a request to add background music or other audio to a video,
+    with control over volume levels and length matching.
+    """
+    video_url: str = Field(
+        ..., 
+        description="URL of the video to add audio to. Supports S3 URLs and other video URLs."
+    )
+    audio_url: str = Field(
+        ..., 
+        description="URL of the audio to add to the video. Supports S3 URLs and other audio URLs."
+    )
+    video_volume: int = Field(
+        default=100,
+        ge=0,
+        le=100,
+        description="Volume level for the video track (0-100)."
+    )
+    audio_volume: int = Field(
+        default=20,
+        ge=0,
+        le=100,
+        description="Volume level for the audio track (0-100)."
+    )
+    match_length: str = Field(
+        default="video",
+        description="Whether to match the output length to the 'audio' or 'video'. Default is 'video'."
+    )
+
+
+class VideoAddAudioResult(BaseModel):
+    """
+    Result model for video add audio operation.
+    """
+    url: AnyUrl = Field(
+        description="URL to the video with added audio stored in S3."
+    )
+    path: str = Field(
+        description="Storage path of the video with added audio in S3."
+    )
+    duration: float = Field(
+        description="Duration of the output video in seconds."
     ) 
