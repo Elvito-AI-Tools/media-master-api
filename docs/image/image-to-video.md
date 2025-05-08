@@ -24,15 +24,12 @@ POST /v1/image/to-video
 ```json
 {
   "image_url": "https://example.com/image.jpg",
-  "video_length": 10,
   "frame_rate": 30,
   "zoom_speed": 10.0,
   "narrator_speech_text": "This is optional text that will be converted to speech",
   "voice": "af_alloy",
   "narrator_audio_url": "https://example.com/audio.mp3",
   "narrator_vol": 100,
-  "background_music_url": "https://example.com/music.mp3",
-  "background_music_vol": 20,
   "should_add_captions": true,
   "caption_properties": {
     "max_words_per_line": 10,
