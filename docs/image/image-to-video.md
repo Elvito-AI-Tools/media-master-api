@@ -50,7 +50,6 @@ POST /v1/image/to-video
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | image_url | string | Yes | URL of the image to convert to video |
-| video_length | number | Yes | Length of the output video in seconds (default: 10.0) |
 | frame_rate | number | No | Frame rate of the output video (default: 30) |
 | zoom_speed | number | No | Speed of the Ken Burns effect (0-100, default: 10.0) |
 | narrator_speech_text | string | No | Text to convert to speech (if provided, narrator_audio_url is ignored) |
