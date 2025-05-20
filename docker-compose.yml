@@ -14,6 +14,14 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     restart: unless-stopped
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: kokoro-tts-service
+    environment:
+      - DOWNLOAD_MODEL=true
+    ports:
+      - "8880:8880" 
+    restart: unless-stopped
 
   api:
     build: .
@@ -22,13 +30,16 @@ services:
       - "48000:8000"
     environment:
       - API_KEY=${API_KEY}
-      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL}
       - S3_ACCESS_KEY=${S3_ACCESS_KEY}
       - S3_SECRET_KEY=${S3_SECRET_KEY}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - S3_REGION=${S3_REGION}
+      - KOKORO_TIMEOUT=120
+      - KOKORO_MAX_TEXT_LENGTH=1000
     depends_on:
       - minio
+      - kokoro-tts
     restart: unless-stopped
 
 volumes:
@@ -37,7 +48,4 @@ volumes:
 networks:
   default:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.101.0/24
         
