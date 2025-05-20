@@ -60,7 +60,10 @@ async def create_image_to_video_job(request: ImageToVideoRequest):
             "zoom_speed": request.zoom_speed,
             "match_length": request.match_length,
             "narrator_vol": request.narrator_vol,
-            "should_add_captions": request.should_add_captions
+            "should_add_captions": request.should_add_captions,
+            "effect_type": request.effect_type,
+            "pan_direction": request.pan_direction,
+            "ken_burns_keypoints": request.ken_burns_keypoints
         }
         
         # Add optional narrator audio parameters if provided
