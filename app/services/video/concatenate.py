@@ -49,12 +49,12 @@ async def concatenate_videos(job_id: str, video_urls: List[str], output_format: 
         
         # Check if S3 is initialized before attempting upload
         use_local_storage = False
-        if not storage_manager.is_initialized:
+        if not (hasattr(storage_manager, 'client') and hasattr(storage_manager, 'bucket_name')):
             # Try to re-initialize storage manager
             logger.warning("S3 storage manager not initialized, attempting to reinitialize...")
             
             # Try to reinitialize the storage manager
-            if storage_manager.reinitialize():
+            if hasattr(storage_manager, 'reinitialize') and storage_manager.reinitialize():
                 logger.info("Successfully reinitialized S3 storage manager")
             else:
                 logger.warning("Failed to reinitialize S3 storage manager, will use local storage as fallback")
@@ -87,11 +87,8 @@ async def concatenate_videos(job_id: str, video_urls: List[str], output_format: 
                 logger.info(f"Attempting to upload file (size: {file_size} bytes) to S3 (attempt {attempt+1}/3)")
                 
                 # Upload to S3
-                upload_result = storage_manager.upload_video(final_output, {
-                    "source": "concatenation",
-                    "job_id": job_id,
-                    "count": str(len(video_urls))
-                })
+                object_name = f"videos/concat_{job_id}{output_format}"
+                upload_result = storage_manager.upload_file(final_output, object_name)
                 
                 if not upload_result:
                     logger.error(f"Failed to upload concatenated video (attempt {attempt+1}/3)")
@@ -101,11 +98,14 @@ async def concatenate_videos(job_id: str, video_urls: List[str], output_format: 
                     
                 # Clean up temporary files
                 cleanup_temp_files(temp_dir)
+
+                #remove signed url from s3
+                upload_result = upload_result.split("?")[0]
                 
                 # Return result as VideoConcatenateResult dict
                 return {
-                    "url": upload_result["url"],
-                    "path": upload_result["path"]
+                    "url": upload_result,  # upload_result is already the URL string
+                    "path": object_name
                 }
             except Exception as e:
                 logger.error(f"Error uploading to S3 (attempt {attempt+1}/3): {e}")
@@ -351,8 +351,9 @@ def check_s3_configuration() -> Dict[str, Any]:
     """
     import os
     
-    # Check if storage manager is initialized
-    is_initialized = storage_manager.is_initialized
+    # Check if storage manager has the necessary attributes for functionality
+    # instead of relying on a specific 'is_initialized' attribute
+    is_initialized = hasattr(storage_manager, 'client') and hasattr(storage_manager, 'bucket_name')
     bucket_name = getattr(storage_manager, 'bucket_name', 'Not set')
     
     # Get environment variables (masked for security)
@@ -426,7 +427,7 @@ class VideoConcatenationService:
                     logger.debug(f"S3 config - {var}: {value}")
                     
                 # Try to reinitialize
-                if storage_manager.reinitialize():
+                if hasattr(storage_manager, 'reinitialize') and storage_manager.reinitialize():
                     logger.info("Successfully reinitialized S3 storage manager")
                 else:
                     logger.warning("Unable to reinitialize S3 storage manager. Videos will be stored locally.")

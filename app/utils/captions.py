@@ -9,6 +9,7 @@ This module provides functions for:
 import os
 import uuid
 import logging
+import subprocess
 from typing import Dict, List, Optional
 
 # Configure logging
@@ -136,7 +137,7 @@ def prepare_subtitle_styling(caption_properties: Optional[Dict] = None) -> Dict:
     # Define default options
     options = {
         'FontName': 'Arial',
-        'FontSize': 24,
+        'FontSize': 48,
         'PrimaryColour': '&HFFFFFF&',  # White
         'OutlineColour': '&H000000&',  # Black
         'BackColour': '&H000000&',    # Black
@@ -157,11 +158,32 @@ def prepare_subtitle_styling(caption_properties: Optional[Dict] = None) -> Dict:
     }
     
     # Determine caption style
-    style = caption_properties.get("style", "highlight").lower()
+    style_value = caption_properties.get("style")
+    style = style_value.lower() if style_value else "highlight"
     
     # Map properties to ASS style options
     if caption_properties.get("font_family"):
-        options['FontName'] = caption_properties["font_family"]
+        requested_font = caption_properties["font_family"]
+        options['FontName'] = requested_font
+        logger.info(f"Font family requested: '{requested_font}'")
+        
+        # Check if the requested font exists on the system
+        try:
+            # Run fc-list to check if the font is available
+            font_check_cmd = ["fc-list", requested_font]
+            font_check_result = subprocess.run(
+                font_check_cmd, 
+                capture_output=True,
+                text=True
+            )
+            
+            if font_check_result.stdout.strip():
+                logger.info(f"Font '{requested_font}' is available on the system")
+            else:
+                logger.warning(f"Font '{requested_font}' may not be available on the system, falling back to Arial")
+                logger.info(f"Available fonts similar to '{requested_font}': {subprocess.run(['fc-list', ':', 'family', '|', 'grep', '-i', requested_font], capture_output=True, text=True).stdout.strip()}")
+        except Exception as e:
+            logger.warning(f"Error checking font availability: {e}")
     
     if caption_properties.get("font_size"):
         options['FontSize'] = caption_properties["font_size"]
@@ -259,11 +281,110 @@ def prepare_subtitle_styling(caption_properties: Optional[Dict] = None) -> Dict:
     
     return options
 
+async def create_standard_ass_from_timestamps(
+    word_timestamps: List[Dict],
+    duration: float,
+    max_words_per_line: int,
+    output_path: str,
+    caption_properties: Optional[Dict] = None
+) -> None:
+    """
+    Create a standard ASS subtitle file from word timestamps without special styling effects.
+    
+    Args:
+        word_timestamps: List of word timestamps
+        duration: Duration in seconds
+        max_words_per_line: Maximum words per line
+        output_path: Output file path
+        caption_properties: Dictionary of caption styling properties
+    """
+    try:
+        # Prepare styling options
+        style_options = prepare_subtitle_styling(caption_properties)
+        
+        # Get style properties
+        primary_color = style_options.get('PrimaryColour', '&HFFFFFF&')  # Default white
+        secondary_color = style_options.get('SecondaryColour', '&HFFFF00&')  # Default yellow
+        outline_color = style_options.get('OutlineColour', '&H000000&')  # Default black
+        back_color = style_options.get('BackColour', '&H000000&')  # Default black
+        
+        # Get font properties
+        font_name = style_options.get('FontName', 'Arial')
+        font_size = style_options.get('FontSize', 48)
+        bold = style_options.get('Bold', 0)
+        italic = style_options.get('Italic', 0)
+        underline = style_options.get('Underline', 0)
+        strikeout = style_options.get('StrikeOut', 0)
+        
+        # Get other style properties
+        border_style = style_options.get('BorderStyle', 1)
+        outline = style_options.get('Outline', 2)
+        shadow = style_options.get('Shadow', 0)
+        alignment = style_options.get('Alignment', 2)
+        margin_l = style_options.get('MarginL', 20)
+        margin_r = style_options.get('MarginR', 20)
+        margin_v = style_options.get('MarginV', 20)
+        
+        # Group words into lines
+        lines = []
+        current_line = []
+        for word_data in word_timestamps:
+            word = word_data.get("word", "").strip()
+            if word:
+                current_line.append(word_data)
+                if len(current_line) >= max_words_per_line:
+                    lines.append(current_line)
+                    current_line = []
+        
+        # Add the last line if there are remaining words
+        if current_line:
+            lines.append(current_line)
+        
+        # Create ASS header
+        ass_content = """[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+"""
+        # Add the style with proper colors
+        ass_content += f"Style: Default,{font_name},{font_size},{primary_color},{secondary_color},{outline_color},{back_color},{bold},{italic},{underline},{strikeout},100,100,0,0,{border_style},{outline},{shadow},{alignment},{margin_l},{margin_r},{margin_v},0\n\n"
+        
+        ass_content += """[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+        
+        # Add dialogue events for each line (standard text without special effects)
+        for line_idx, line_words in enumerate(lines):
+            # Create the text for the line
+            line_text = ' '.join([word_data.get("word", "").strip() for word_data in line_words])
+            line_start = line_words[0].get("start", 0)
+            line_end = line_words[-1].get("end", duration)
+            
+            start_time_str = format_ass_timestamp(line_start)
+            end_time_str = format_ass_timestamp(line_end)
+            
+            # Standard text line
+            ass_content += f"Dialogue: 0,{start_time_str},{end_time_str},Default,,0,0,0,,{line_text}\n"
+        
+        # Write the ASS content to the output file
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(ass_content)
+        
+        logger.info(f"Created standard ASS file with {len(lines)} lines from word timestamps")
+    
+    except Exception as e:
+        logger.error(f"Error creating standard ASS from timestamps: {e}")
+        raise
+
 async def create_srt_from_word_timestamps(
     word_timestamps: List[Dict],
     duration: float,
     max_words_per_line: int = 10,
-    style: str = "highlight",
+    style: str = "",
     caption_properties: Optional[Dict] = None
 ) -> str:
     """
@@ -293,9 +414,8 @@ async def create_srt_from_word_timestamps(
         elif style == "word_by_word":
             await create_word_by_word_style_ass_from_timestamps(word_timestamps, duration, max_words_per_line, subtitle_path)
         else:
-            # Default to highlight style for any other value
-            logger.warning(f"Unsupported style '{style}', falling back to highlight style")
-            await create_highlight_style_ass_from_timestamps(word_timestamps, duration, max_words_per_line, subtitle_path, caption_properties)
+            # Use standard ASS without special styling but with caption properties
+            await create_standard_ass_from_timestamps(word_timestamps, duration, max_words_per_line, subtitle_path, caption_properties)
         
         logger.info(f"Created subtitle file with style {style} at {subtitle_path} using word timestamps")
         return subtitle_path
