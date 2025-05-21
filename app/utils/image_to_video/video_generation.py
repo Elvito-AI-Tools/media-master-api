@@ -52,7 +52,22 @@ async def create_video_with_effects(
         # Create output path
         temp_dir = "temp"
         if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir, exist_ok=True)
+            try:
+                # Create with explicit permissions (0o755 = rwxr-xr-x)
+                os.makedirs(temp_dir, mode=0o755, exist_ok=True)
+                logger.info(f"Created temp directory at {os.path.abspath(temp_dir)}")
+            except Exception as e:
+                logger.error(f"Failed to create temp directory: {e}")
+                # Try using /tmp as a fallback
+                temp_dir = "/tmp"
+                logger.info(f"Using fallback temp directory: {temp_dir}")
+                
+        # Ensure the temp directory is writable
+        if not os.access(temp_dir, os.W_OK):
+            logger.error(f"Temp directory {temp_dir} is not writable")
+            # Try using /tmp as a fallback
+            temp_dir = "/tmp"
+            logger.info(f"Using fallback temp directory: {temp_dir}")
             
         output_path = os.path.join(temp_dir, f"video_only_{uuid.uuid4()}.mp4")
         
@@ -68,16 +83,135 @@ async def create_video_with_effects(
         if effect_type == "none":
             # No motion effect - just convert the image to video with the specified duration
             # Use a simpler filter chain to avoid potential syntax issues
-            filter_complex = f"scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad=w={width}:h={height}:x=(ow-iw)/2:y=(oh-ih)/2,fps={frame_rate}"
+            filter_complex = f"scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
+            
+            # Build FFmpeg command with the filter
+            cmd = [
+                "ffmpeg",
+                "-y",  # Overwrite output if exists
+                "-loop", "1",  # Loop the input
+                "-i", image_path,  # Input image
+                "-vf", filter_complex,  # Video filter
+                "-c:v", "libx264",  # Video codec
+                "-t", str(video_length),  # Duration
+                "-pix_fmt", "yuv420p",  # Pixel format
+                "-preset", "medium",  # Quality preset
+                "-crf", "23",  # Quality level
+                "-movflags", "+faststart",  # Optimize for web
+                output_path  # Output file
+            ]
+            
+            # Log the full command for debugging
+            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
+            
+            # Run FFmpeg command with detailed error handling
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                # Log the output regardless of success
+                if stdout:
+                    logger.debug(f"FFmpeg stdout: {stdout.decode()}")
+                if stderr:
+                    stderr_text = stderr.decode()
+                    if process.returncode != 0:
+                        logger.error(f"FFmpeg stderr: {stderr_text}")
+                    else:
+                        logger.debug(f"FFmpeg stderr: {stderr_text}")
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
+                    logger.error(f"FFmpeg command failed with return code {process.returncode}: {error_msg}")
+                    raise RuntimeError(f"FFmpeg command failed: {error_msg}")
+                
+                # Verify the output file exists and has content
+                if not os.path.exists(output_path):
+                    logger.error(f"Output file not created: {output_path}")
+                    raise FileNotFoundError(f"Output video was not created at {output_path}")
+                    
+                file_size = os.path.getsize(output_path)
+                if file_size == 0:
+                    logger.error(f"Output file is empty: {output_path}")
+                    raise RuntimeError(f"Output video was created but is empty: {output_path}")
+                    
+                logger.info(f"Successfully created video at {output_path} ({file_size} bytes)")
+                
+            except Exception as e:
+                logger.error(f"Error executing FFmpeg command: {str(e)}", exc_info=True)
+                raise
         elif effect_type == "zoom":
             # Standard zoom effect (centered)
             filter_complex = (
                 f"scale={scale_dims},"
                 f"zoompan=z='min(1+({zoom_speed_normalized}*{video_length})*on/{total_frames}, {zoom_factor})':"
                 f"d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-                f"s={output_dims},fps={frame_rate}"
+                f"s={output_dims}"
             )
             
+            # Build FFmpeg command with the filter
+            cmd = [
+                "ffmpeg",
+                "-y",  # Overwrite output if exists
+                "-loop", "1",  # Loop the input
+                "-framerate", str(frame_rate),  # Input framerate
+                "-i", image_path,  # Input image
+                "-vf", filter_complex,  # Video filter
+                "-c:v", "libx264",  # Video codec
+                "-r", str(frame_rate),  # Output framerate
+                "-pix_fmt", "yuv420p",  # Pixel format
+                "-preset", "medium",  # Quality preset
+                "-crf", "23",  # Quality level
+                "-t", str(video_length),  # Duration
+                "-movflags", "+faststart",  # Optimize for web
+                output_path  # Output file
+            ]
+            
+            # Log the full command for debugging
+            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
+            
+            # Run FFmpeg command with detailed error handling
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                # Log the output regardless of success
+                if stdout:
+                    logger.debug(f"FFmpeg stdout: {stdout.decode()}")
+                if stderr:
+                    stderr_text = stderr.decode()
+                    if process.returncode != 0:
+                        logger.error(f"FFmpeg stderr: {stderr_text}")
+                    else:
+                        logger.debug(f"FFmpeg stderr: {stderr_text}")
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
+                    logger.error(f"FFmpeg command failed with return code {process.returncode}: {error_msg}")
+                    raise RuntimeError(f"FFmpeg command failed: {error_msg}")
+                
+                # Verify the output file exists and has content
+                if not os.path.exists(output_path):
+                    logger.error(f"Output file not created: {output_path}")
+                    raise FileNotFoundError(f"Output video was not created at {output_path}")
+                    
+                file_size = os.path.getsize(output_path)
+                if file_size == 0:
+                    logger.error(f"Output file is empty: {output_path}")
+                    raise RuntimeError(f"Output video was created but is empty: {output_path}")
+                    
+                logger.info(f"Successfully created video at {output_path} ({file_size} bytes)")
+                
+            except Exception as e:
+                logger.error(f"Error executing FFmpeg command: {str(e)}", exc_info=True)
+                raise
         elif effect_type == "pan":
             # Pan effect with simple expressions, using zoompan for consistency
             # Adding a subtle zoom factor for more visual appeal
@@ -165,9 +299,69 @@ async def create_video_with_effects(
                     f"d={total_frames}:"
                     f"x='0+(iw-iw/zoom)*on/{total_frames}':"  # Properly move from left edge to right edge considering zoom
                     f"y='ih/2-(ih/zoom/2)':"  # Keep centered vertically considering zoom
-                    f"s={output_dims},fps={frame_rate}"
+                    f"s={output_dims}"
                 )
             
+            # Build FFmpeg command with the filter
+            cmd = [
+                "ffmpeg",
+                "-y",  # Overwrite output if exists
+                "-loop", "1",  # Loop the input
+                "-framerate", str(frame_rate),  # Input framerate
+                "-i", image_path,  # Input image
+                "-vf", filter_complex,  # Video filter
+                "-c:v", "libx264",  # Video codec
+                "-r", str(frame_rate),  # Output framerate
+                "-pix_fmt", "yuv420p",  # Pixel format
+                "-preset", "medium",  # Quality preset
+                "-crf", "23",  # Quality level
+                "-t", str(video_length),  # Duration
+                "-movflags", "+faststart",  # Optimize for web
+                output_path  # Output file
+            ]
+            
+            # Log the full command for debugging
+            logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
+            
+            # Run FFmpeg command with detailed error handling
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                # Log the output regardless of success
+                if stdout:
+                    logger.debug(f"FFmpeg stdout: {stdout.decode()}")
+                if stderr:
+                    stderr_text = stderr.decode()
+                    if process.returncode != 0:
+                        logger.error(f"FFmpeg stderr: {stderr_text}")
+                    else:
+                        logger.debug(f"FFmpeg stderr: {stderr_text}")
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
+                    logger.error(f"FFmpeg command failed with return code {process.returncode}: {error_msg}")
+                    raise RuntimeError(f"FFmpeg command failed: {error_msg}")
+                
+                # Verify the output file exists and has content
+                if not os.path.exists(output_path):
+                    logger.error(f"Output file not created: {output_path}")
+                    raise FileNotFoundError(f"Output video was not created at {output_path}")
+                    
+                file_size = os.path.getsize(output_path)
+                if file_size == 0:
+                    logger.error(f"Output file is empty: {output_path}")
+                    raise RuntimeError(f"Output video was created but is empty: {output_path}")
+                    
+                logger.info(f"Successfully created video at {output_path} ({file_size} bytes)")
+                
+            except Exception as e:
+                logger.error(f"Error executing FFmpeg command: {str(e)}", exc_info=True)
+                raise
         elif effect_type == "ken_burns":
             # Use a simpler ken burns approach with sendzoom filter if available
             # Otherwise fallback to a simpler implementation with just two points
@@ -472,22 +666,20 @@ async def create_video_with_effects(
             # Fallback to no motion effect if unknown effect type
             logger.warning(f"Unknown effect type: {effect_type}. Using no motion effect.")
             # Use a simpler filter chain to avoid potential syntax issues
-            filter_complex = f"scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad=w={width}:h={height}:x=(ow-iw)/2:y=(oh-ih)/2,fps={frame_rate}"
+            filter_complex = f"scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
             
             # Build FFmpeg command with the filter
             cmd = [
                 "ffmpeg",
                 "-y",  # Overwrite output if exists
-                "-framerate", str(frame_rate),  # Set input framerate
                 "-loop", "1",  # Loop the input
                 "-i", image_path,  # Input image
                 "-vf", filter_complex,  # Video filter
                 "-c:v", "libx264",  # Video codec
-                "-r", str(frame_rate),  # Output framerate
+                "-t", str(video_length),  # Duration
                 "-pix_fmt", "yuv420p",  # Pixel format
                 "-preset", "medium",  # Quality preset
                 "-crf", "23",  # Quality level
-                "-t", str(video_length),  # Duration
                 "-movflags", "+faststart",  # Optimize for web
                 output_path  # Output file
             ]
@@ -495,24 +687,47 @@ async def create_video_with_effects(
             # Log the full command for debugging
             logger.info(f"Running FFmpeg command: {' '.join(cmd)}")
             
-            # Run FFmpeg command
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
-                logger.error(f"FFmpeg error: {error_msg}")
-                raise RuntimeError(f"FFmpeg command failed: {error_msg}")
-            
-        # Check if output was created
-        if not os.path.exists(output_path):
-            raise FileNotFoundError(f"Output video was not created at {output_path}")
+            # Run FFmpeg command with detailed error handling
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                # Log the output regardless of success
+                if stdout:
+                    logger.debug(f"FFmpeg stdout: {stdout.decode()}")
+                if stderr:
+                    stderr_text = stderr.decode()
+                    if process.returncode != 0:
+                        logger.error(f"FFmpeg stderr: {stderr_text}")
+                    else:
+                        logger.debug(f"FFmpeg stderr: {stderr_text}")
+                
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown FFmpeg error"
+                    logger.error(f"FFmpeg command failed with return code {process.returncode}: {error_msg}")
+                    raise RuntimeError(f"FFmpeg command failed: {error_msg}")
+                
+                # Verify the output file exists and has content
+                if not os.path.exists(output_path):
+                    logger.error(f"Output file not created: {output_path}")
+                    raise FileNotFoundError(f"Output video was not created at {output_path}")
+                    
+                file_size = os.path.getsize(output_path)
+                if file_size == 0:
+                    logger.error(f"Output file is empty: {output_path}")
+                    raise RuntimeError(f"Output video was created but is empty: {output_path}")
+                    
+                logger.info(f"Successfully created video at {output_path} ({file_size} bytes)")
+                
+            except Exception as e:
+                logger.error(f"Error executing FFmpeg command: {str(e)}", exc_info=True)
+                raise
         
-        logger.info(f"Successfully created video at {output_path}")
+        # Return the output path
         return output_path
         
     except Exception as e:
