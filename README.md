@@ -41,11 +41,12 @@ cp .env.example .env
 3. Add your API_KEY and AWS credentials to the .env file:
 
 ```bash
-# Edit .env with your actual credentials
-API_KEY=your_api_key
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=your_region
+# S3 configuration
+S3_ACCESS_KEY=your_s3_access_key_here
+S3_SECRET_KEY=your_s3_secret_key_here
+S3_BUCKET_NAME=your_s3_bucket_name_here
+S3_REGION=your_s3_region_here
+S3_ENDPOINT=your_s3_endpoint_here
 ```
 
 4. Run and build the docker compose:
