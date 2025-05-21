@@ -118,6 +118,10 @@ async def read_root():
                 "add_audio": {
                     "create_job": "/v1/video/add-audio",
                     "get_job_status": "/v1/video/add-audio/{job_id}"
+                },
+                "add_captions": {
+                    "create_job": "/v1/video/add-captions",
+                    "get_job_status": "/v1/video/add-captions/{job_id}"
                 }
             }
         }

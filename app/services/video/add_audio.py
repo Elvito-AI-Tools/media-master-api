@@ -20,7 +20,7 @@ from typing import Dict, Any, Tuple, Optional
 
 from app.utils.media import download_media_file
 from app.utils.youtube import is_youtube_url, download_youtube_audio
-from app.services.s3 import s3_service
+from app.utils.storage import storage_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -106,13 +106,15 @@ class AddAudioService:
             logger.info(f"Uploading mixed video to S3")
             output_filename = f"mixed_video_{job_id}{video_ext}"
             s3_path = f"output/videos/{output_filename}"
-            url = await s3_service.upload_file(output_path, s3_path)
+            url = storage_manager.upload_file(output_path, s3_path)
             
             # Clean up temporary files
             for path in [video_path, audio_path, output_path]:
                 if os.path.exists(path):
                     os.unlink(path)
-            
+
+           #remove signed url from s3
+            url = url.split("?")[0]
             # Return result
             return {
                 "url": url,
@@ -156,6 +158,10 @@ class AddAudioService:
             logger.info(f"Video duration: {video_duration} seconds")
             logger.info(f"Audio duration: {audio_duration} seconds")
             
+            # Check if video has audio stream
+            has_audio_stream = self._check_video_has_audio(video_path)
+            logger.info(f"Video has audio stream: {has_audio_stream}")
+            
             # Set the options based on the match_length parameter
             if match_length == "audio":
                 # Audio will determine the output duration
@@ -163,14 +169,16 @@ class AddAudioService:
                     # Loop video to match audio duration
                     cmd = self._build_ffmpeg_loop_video_command(
                         video_path, audio_path, output_path, 
-                        video_volume, audio_volume, audio_duration
+                        video_volume, audio_volume, audio_duration,
+                        has_audio_stream
                     )
                     final_duration = audio_duration
                 else:
                     # Audio is longer or equal, trim to video length
                     cmd = self._build_ffmpeg_standard_command(
                         video_path, audio_path, output_path, 
-                        video_volume, audio_volume
+                        video_volume, audio_volume,
+                        has_audio_stream
                     )
                     final_duration = video_duration
             else:  # match_length == "video"
@@ -179,13 +187,15 @@ class AddAudioService:
                     # Loop audio to match video duration
                     cmd = self._build_ffmpeg_loop_audio_command(
                         video_path, audio_path, output_path, 
-                        video_volume, audio_volume
+                        video_volume, audio_volume,
+                        has_audio_stream
                     )
                 else:
                     # Video is shorter or equal, trim audio
                     cmd = self._build_ffmpeg_standard_command(
                         video_path, audio_path, output_path, 
-                        video_volume, audio_volume
+                        video_volume, audio_volume,
+                        has_audio_stream
                     )
                 final_duration = video_duration
             
@@ -246,9 +256,35 @@ class AddAudioService:
             logger.error(f"Error getting media duration: {e}")
             raise RuntimeError(f"Failed to get media duration: {str(e)}")
     
+    def _check_video_has_audio(self, video_path: str) -> bool:
+        """
+        Check if a video file has an audio stream.
+        
+        Args:
+            video_path: Path to the video file
+            
+        Returns:
+            True if the video has an audio stream, False otherwise
+        """
+        try:
+            cmd = [
+                "ffprobe", 
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                video_path
+            ]
+            
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+            return result.stdout.strip() == "audio"
+        except Exception as e:
+            logger.error(f"Error checking for audio stream: {e}")
+            return False
+    
     def _build_ffmpeg_standard_command(self, video_path: str, audio_path: str, 
                                       output_path: str, video_volume: int, 
-                                      audio_volume: int) -> list:
+                                      audio_volume: int, has_audio_stream: bool = True) -> list:
         """
         Build a standard FFmpeg command for mixing video and audio.
         
@@ -261,6 +297,7 @@ class AddAudioService:
             output_path: Path to the output file
             video_volume: Volume level for the video track (0-100)
             audio_volume: Volume level for the audio track (0-100)
+            has_audio_stream: Whether the video has an audio stream
             
         Returns:
             FFmpeg command as a list of strings
@@ -269,13 +306,19 @@ class AddAudioService:
         video_vol = video_volume / 100
         audio_vol = audio_volume / 100
         
+        if has_audio_stream:
+            # Video has audio, mix both audio streams
+            filter_complex = f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=shortest[aout]"
+        else:
+            # Video doesn't have audio, just use the audio file with adjusted volume
+            filter_complex = f"[1:a]volume={audio_vol}[aout]"
+        
         return [
             "ffmpeg",
             "-y",
             "-i", video_path,
             "-i", audio_path,
-            "-filter_complex",
-            f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=shortest[aout]",
+            "-filter_complex", filter_complex,
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",
@@ -286,7 +329,7 @@ class AddAudioService:
     
     def _build_ffmpeg_loop_audio_command(self, video_path: str, audio_path: str, 
                                         output_path: str, video_volume: int, 
-                                        audio_volume: int) -> list:
+                                        audio_volume: int, has_audio_stream: bool = True) -> list:
         """
         Build an FFmpeg command for mixing video with looped audio.
         
@@ -298,6 +341,7 @@ class AddAudioService:
             output_path: Path to the output file
             video_volume: Volume level for the video track (0-100)
             audio_volume: Volume level for the audio track (0-100)
+            has_audio_stream: Whether the video has an audio stream
             
         Returns:
             FFmpeg command as a list of strings
@@ -306,14 +350,20 @@ class AddAudioService:
         video_vol = video_volume / 100
         audio_vol = audio_volume / 100
         
+        if has_audio_stream:
+            # Video has audio, mix both audio streams
+            filter_complex = f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=first[aout]"
+        else:
+            # Video doesn't have audio, just use the audio file with adjusted volume
+            filter_complex = f"[1:a]volume={audio_vol}[aout]"
+        
         return [
             "ffmpeg",
             "-y",
             "-i", video_path,
             "-stream_loop", "-1",  # Loop audio infinitely
             "-i", audio_path,
-            "-filter_complex",
-            f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=first[aout]",
+            "-filter_complex", filter_complex,
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",
@@ -324,7 +374,8 @@ class AddAudioService:
     
     def _build_ffmpeg_loop_video_command(self, video_path: str, audio_path: str, 
                                         output_path: str, video_volume: int, 
-                                        audio_volume: int, duration: float) -> list:
+                                        audio_volume: int, duration: float,
+                                        has_audio_stream: bool = True) -> list:
         """
         Build an FFmpeg command for mixing looped video with audio.
         
@@ -337,6 +388,7 @@ class AddAudioService:
             video_volume: Volume level for the video track (0-100)
             audio_volume: Volume level for the audio track (0-100)
             duration: The target duration in seconds
+            has_audio_stream: Whether the video has an audio stream
             
         Returns:
             FFmpeg command as a list of strings
@@ -345,14 +397,20 @@ class AddAudioService:
         video_vol = video_volume / 100
         audio_vol = audio_volume / 100
         
+        if has_audio_stream:
+            # Video has audio, mix both audio streams
+            filter_complex = f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=first[aout]"
+        else:
+            # Video doesn't have audio, just use the audio file with adjusted volume
+            filter_complex = f"[1:a]volume={audio_vol}[aout]"
+        
         return [
             "ffmpeg",
             "-y",
             "-stream_loop", "-1",  # Loop video infinitely
             "-i", video_path,
             "-i", audio_path,
-            "-filter_complex",
-            f"[0:a]volume={video_vol}[a1];[1:a]volume={audio_vol}[a2];[a1][a2]amix=inputs=2:duration=first[aout]",
+            "-filter_complex", filter_complex,
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",

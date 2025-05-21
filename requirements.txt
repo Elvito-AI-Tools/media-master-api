@@ -10,3 +10,8 @@ openai-whisper
 yt-dlp
 ffmpeg-python==0.2.0
 aiofiles==23.2.1 
+
+minio>=7.0.0
+fastapi>=0.68.0
+uvicorn>=0.15.0
+python-multipart>=0.0.5

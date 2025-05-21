@@ -53,20 +53,61 @@ async def download_media_file(media_url: str, temp_dir: str = "temp") -> Tuple[s
     
     logger.info(f"Downloading media from {media_url} to {local_file_path}")
     
-    # Check if URL is from our S3 bucket
-    bucket_name = os.environ.get("AWS_BUCKET_NAME", "")
+    # Check if URL is from our internal systems
+    is_from_minio = "minio" in hostname
+    bucket_name = os.environ.get("S3_BUCKET_NAME", "")
     is_from_our_s3 = bucket_name and bucket_name in hostname
     
     try:
-        if is_from_our_s3:
+        if is_from_minio:
+            # Use storage_manager for Minio requests instead of direct HTTP requests
+            logger.info(f"Detected Minio URL, using storage_manager to download: {media_url}")
+            
+            # Extract the object key from the path
+            # Remove bucket name from path if present
+            object_path = path.lstrip('/')
+            if object_path.startswith(f"{bucket_name}/"):
+                object_key = object_path[len(bucket_name)+1:]
+            else:
+                object_key = object_path
+                
+            logger.info(f"Extracting object key from path: {object_key}")
+            
+            from app.utils.storage import storage_manager
+            
+            # Download using storage_manager
+            try:
+                storage_manager.client.fget_object(
+                    bucket_name=storage_manager.bucket_name,
+                    object_name=object_key,
+                    file_path=local_file_path
+                )
+                logger.info(f"Successfully downloaded file from Minio: {local_file_path}")
+            except Exception as e:
+                logger.error(f"Error using storage_manager to download: {e}")
+                # If URL has a presigned signature, try direct HTTP download as fallback
+                if '?' in media_url:
+                    logger.info("Trying direct HTTP download with presigned URL as fallback")
+                    import requests
+                    response = requests.get(media_url, timeout=30)
+                    response.raise_for_status()
+                    
+                    with open(local_file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    logger.info(f"Successfully downloaded file with presigned URL: {local_file_path}")
+                else:
+                    raise
+        elif is_from_our_s3:
             # Extract object key from path
             object_key = path.lstrip('/')
             logger.info(f"Detected S3 URL, downloading object: {object_key}")
             
             # Use S3 service to download the file
+            from app.services.s3 import s3_service
             local_file_path = await s3_service.download_file(object_key, local_file_path)
         else:
-            # Use yt-dlp for other URLs
+            # Use yt-dlp for external URLs
             download_with_ytdlp(media_url, local_file_path)
             
         logger.info(f"Media downloaded successfully to {local_file_path}")
@@ -157,15 +198,57 @@ async def download_subtitle_file(subtitle_url: str, temp_dir: str = "temp") -> s
     
     logger.info(f"Downloading subtitle file from URL: {subtitle_url}")
     
-    # Check if URL is from our S3 bucket
-    bucket_name = os.environ.get("AWS_BUCKET_NAME", "")
+    # Check if URL is from our internal systems
+    is_from_minio = "minio" in hostname
+    bucket_name = os.environ.get("S3_BUCKET_NAME", "")
     is_from_our_s3 = bucket_name and bucket_name in hostname
     
     try:
-        if is_from_our_s3:
+        if is_from_minio:
+            # Use storage_manager for Minio requests instead of direct HTTP requests
+            logger.info(f"Detected Minio URL, using storage_manager to download subtitle: {subtitle_url}")
+            
+            # Extract the object key from the path
+            # Remove bucket name from path if present
+            object_path = path.lstrip('/')
+            if object_path.startswith(f"{bucket_name}/"):
+                object_key = object_path[len(bucket_name)+1:]
+            else:
+                object_key = object_path
+                
+            logger.info(f"Extracting object key from path: {object_key}")
+            
+            from app.utils.storage import storage_manager
+            
+            # Download using storage_manager
+            try:
+                storage_manager.client.fget_object(
+                    bucket_name=storage_manager.bucket_name,
+                    object_name=object_key,
+                    file_path=temp_file_path
+                )
+                logger.info(f"Successfully downloaded subtitle from Minio: {temp_file_path}")
+            except Exception as e:
+                logger.error(f"Error using storage_manager to download subtitle: {e}")
+                # If URL has a presigned signature, try direct HTTP download as fallback
+                if '?' in subtitle_url:
+                    logger.info("Trying direct HTTP download with presigned URL as fallback")
+                    import requests
+                    response = requests.get(subtitle_url, timeout=30)
+                    response.raise_for_status()
+                    
+                    with open(temp_file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    logger.info(f"Successfully downloaded subtitle with presigned URL: {temp_file_path}")
+                else:
+                    raise
+        elif is_from_our_s3:
             # Extract object key from path and use S3 service
             object_key = path.lstrip('/')
             logger.info(f"Detected S3 URL, downloading subtitle: {object_key}")
+            
+            from app.services.s3 import s3_service
             temp_file_path = await s3_service.download_file(object_key, temp_file_path)
         else:
             # Use regular HTTP download for non-S3 URLs

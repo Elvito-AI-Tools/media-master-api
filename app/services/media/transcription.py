@@ -12,8 +12,8 @@ from typing import Dict, Any, Tuple, List, Optional
 import asyncio
 import concurrent.futures
 
-from app.services.s3 import s3_service
 from app.utils.media import download_media_file, SUPPORTED_FORMATS
+from app.utils.storage import storage_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -150,7 +150,12 @@ class TranscriptionService:
                 
                 # Upload SRT to S3
                 srt_object_name = os.path.basename(srt_path)
-                srt_url = await s3_service.upload_file(srt_path, f"transcriptions/{srt_object_name}")
+                srt_url = storage_manager.upload_file(srt_path, f"transcriptions/{srt_object_name}")
+
+                # Remove signature parameters from URL
+                if '?' in srt_url:
+                    srt_url = srt_url.split('?')[0]
+                
                 response["srt_url"] = srt_url
                 
                 # Delete local SRT file

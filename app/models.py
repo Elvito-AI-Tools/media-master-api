@@ -18,6 +18,7 @@ class JobType(str, Enum):
     MEDIA_TRANSCRIPTION = "media_transcription"
     VIDEO_CONCATENATION = "video_concatenation"
     VIDEO_ADD_AUDIO = "video_add_audio"
+    VIDEO_ADD_CAPTIONS = "video_add_captions"
 
 
 class Job(BaseModel):
@@ -270,6 +271,18 @@ class ImageToVideoRequest(BaseModel):
         le=100,
         description="Speed of zoom effect (0-100). Values between 5-20 produce the smoothest results."
     )
+    effect_type: str = Field(
+        default="none",
+        description="Type of animation effect to apply. Options: 'none', 'zoom', 'pan', 'ken_burns'. Use 'none' for a static video with no motion effects."
+    )
+    pan_direction: Optional[str] = Field(
+        default=None,
+        description="Direction of pan effect when effect_type is 'pan'. Options: 'left_to_right', 'right_to_left', 'top_to_bottom', 'bottom_to_top', 'diagonal_top_left', 'diagonal_top_right', 'diagonal_bottom_left', 'diagonal_bottom_right'."
+    )
+    ken_burns_keypoints: Optional[List[Dict[str, float]]] = Field(
+        default=None,
+        description="List of keypoints for Ken Burns effect when effect_type is 'ken_burns'. Each keypoint is a dictionary with 'time' (in seconds), 'x' (0-1), 'y' (0-1), and 'zoom' (scale factor) values. At least 2 keypoints should be provided."
+    )
     
     # Narrator audio parameters (optional)
     narrator_speech_text: Optional[str] = Field(
@@ -419,4 +432,50 @@ class VideoAddAudioResult(BaseModel):
     )
     duration: float = Field(
         description="Duration of the output video in seconds."
+    ) 
+
+
+class VideoAddCaptionsRequest(BaseModel):
+    """
+    Request model for adding captions to a video.
+    
+    This model represents a request to add captions to a video, with options for
+    customizing their appearance and using different caption sources.
+    """
+    video_url: str = Field(
+        ...,
+        description="URL of the video to add captions to. Supports S3 URLs and other video URLs."
+    )
+    captions: Optional[str] = Field(
+        default=None,
+        description="Caption content, which can be raw text, URL to an SRT/ASS subtitle file, or None to use audio from the video."
+    )
+    caption_properties: Optional[VideoCaptionProperties] = Field(
+        default=None,
+        description="Styling properties for captions, allowing customization of appearance and behavior."
+    )
+
+
+class VideoAddCaptionsResult(BaseModel):
+    """
+    Result model for video add captions operation.
+    """
+    url: AnyUrl = Field(
+        description="URL to the video with added captions stored in S3."
+    )
+    path: str = Field(
+        description="Storage path of the video with added captions in S3."
+    )
+    duration: float = Field(
+        description="Duration of the output video in seconds."
+    )
+    width: int = Field(
+        description="Width of the output video in pixels."
+    )
+    height: int = Field(
+        description="Height of the output video in pixels."
+    )
+    srt_url: Optional[AnyUrl] = Field(
+        default=None,
+        description="URL to the SRT subtitle file used (if applicable)."
     ) 

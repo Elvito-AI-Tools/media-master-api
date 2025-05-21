@@ -7,7 +7,7 @@ import asyncio
 import logging
 import json
 import aiohttp
-from app.services.s3 import s3_service
+from app.utils.storage import storage_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -119,13 +119,19 @@ async def process_text_to_speech(params: dict) -> dict:
         
         # Upload to S3
         s3_key = f"audio/{mp3_filename}"
-        audio_url = await s3_service.upload_file(mp3_output_path, s3_key)
+        audio_url  = storage_manager.upload_file(mp3_output_path, s3_key)
+    
         
         logger.info(f"Audio file uploaded to S3 with URL: {audio_url}")
+
+        #remove signed url from s3
+        audio_url = audio_url.split("?")[0]
         
+
         # Return the result
         return {
             "audio_url": audio_url,
+            "audio_path": s3_key,
             "tts_engine": "kokoro",
             "voice": voice
         }
