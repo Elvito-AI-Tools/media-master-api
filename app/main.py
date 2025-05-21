@@ -33,6 +33,7 @@ from app.utils.auth import get_api_key
 
 # Import routers
 from app.routes.image.image_to_video import router as image_to_video_router
+from app.routes.image.image_overlay import router as image_overlay_router
 from app.routes.audio.text_to_speech import router as text_to_speech_router
 from app.routes.media.transcription import router as media_transcription_router
 from app.routes.video import router as video_router
@@ -85,6 +86,7 @@ os.makedirs("temp/output", exist_ok=True)
 
 # Include routers with authentication dependency
 app.include_router(image_to_video_router, dependencies=[Depends(get_api_key)])
+app.include_router(image_overlay_router, dependencies=[Depends(get_api_key)])
 app.include_router(text_to_speech_router, dependencies=[Depends(get_api_key)])
 app.include_router(media_transcription_router, dependencies=[Depends(get_api_key)])
 app.include_router(video_router, prefix="/v1/video", dependencies=[Depends(get_api_key)])
@@ -101,6 +103,10 @@ async def read_root():
             "image_to_video": {
                 "create_job": "/v1/image/to-video",
                 "get_job_status": "/v1/image/to-video/{job_id}"
+            },
+            "image_overlay": {
+                "create_job": "/v1/image/add-overlay-image",
+                "get_job_status": "/v1/image/add-overlay-image/{job_id}"
             },
             "text_to_speech": {
                 "create_job": "/v1/audio/text-to-speech",

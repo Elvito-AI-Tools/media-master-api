@@ -75,6 +75,7 @@ For detailed API documentation, we've created a comprehensive documentation set 
 - **Image Processing**:
   - [Image Routes Overview](./docs/image/README.md)
   - [Image to Video Conversion](./docs/image/image-to-video.md)
+  - [Image Overlay](./docs/image/image-overlay.md)
 - **Audio Processing**:
   - [Audio Routes Overview](./docs/audio/README.md)
   - [Text to Speech Conversion](./docs/audio/text-to-speech.md)
@@ -154,6 +155,81 @@ The image-to-video endpoint supports sophisticated audio mixing:
 - **Volume Control**: Adjust volume levels independently for narrator and background music
 - **Format Compatibility**: Automatic handling of different audio formats and sample rates
 - **Fallback Mechanisms**: Multiple mixing methods ensure reliable audio processing
+</details>
+
+<details>
+<summary><strong>Image Overlay</strong></summary>
+
+Overlay multiple images on top of a base image with positioning and effects:
+
+1. Create a job (POST /v1/image/add-overlay-image):
+
+```json
+{
+  "base_image_url": "https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png",
+  "overlay_images": [
+    {
+      "url": "https://python.org/static/community_logos/python-logo.png",
+      "x": 0.5,
+      "y": 0.8,
+      "width": 0.3,
+      "opacity": 0.9,
+      "z_index": 1
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png",
+      "x": 0.8,
+      "y": 0.2,
+      "width": 0.2,
+      "rotation": 15,
+      "opacity": 0.8,
+      "z_index": 2
+    }
+  ],
+  "output_format": "png",
+  "output_quality": 95,
+  "output_width": 1200,
+  "maintain_aspect_ratio": true
+}
+```
+
+Response:
+
+```json
+{
+  "job_id": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p"
+}
+```
+
+2. Check job status (GET /v1/image/add-overlay-image/{job_id})
+
+Response (when completed):
+
+```json
+{
+  "job_id": "a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p",
+  "status": "completed",
+  "result": {
+    "image_url": "https://your-bucket.s3.region.amazonaws.com/image-overlay-results/a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p.png",
+    "width": 1200,
+    "height": 800,
+    "format": "png",
+    "storage_path": "image-overlay-results/a1b2c3d4-5e6f-7g8h-9i0j-1k2l3m4n5o6p.png"
+  },
+  "error": null
+}
+```
+
+#### Image Overlay Features
+
+The image overlay endpoint provides advanced image composition capabilities:
+
+- **Multiple Overlays**: Add any number of images on top of a base image
+- **Precise Positioning**: Position overlays using normalized coordinates (0.0 to 1.0)
+- **Sizing Control**: Maintain aspect ratios or set specific dimensions relative to the base image
+- **Visual Effects**: Apply rotation and opacity to overlays
+- **Layering Control**: Use z-index to control which overlays appear on top of others
+- **Format Options**: Output in PNG, JPEG, or WebP with quality control
 </details>
 
 <details>

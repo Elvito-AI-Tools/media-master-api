@@ -359,6 +359,117 @@ class ImageToVideoResult(BaseModel):
     )
 
 
+class OverlayImagePosition(BaseModel):
+    """
+    Position information for an overlay image.
+    """
+    url: AnyUrl = Field(
+        description="URL of the overlay image to be placed on the base image."
+    )
+    x: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Horizontal position (0.0 to 1.0) where 0.0 is the left edge and 1.0 is the right edge."
+    )
+    y: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Vertical position (0.0 to 1.0) where 0.0 is the top edge and 1.0 is the bottom edge."
+    )
+    width: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Width of the overlay image relative to the base image width (0.0 to 1.0). If not specified, the original aspect ratio is maintained."
+    )
+    height: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Height of the overlay image relative to the base image height (0.0 to 1.0). If not specified, the original aspect ratio is maintained."
+    )
+    rotation: Optional[float] = Field(
+        default=0.0,
+        ge=0.0,
+        lt=360.0,
+        description="Rotation angle in degrees (0 to 359.99)."
+    )
+    opacity: Optional[float] = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Opacity of the overlay image (0.0 to 1.0) where 0.0 is fully transparent and 1.0 is fully opaque."
+    )
+    z_index: Optional[int] = Field(
+        default=0,
+        description="Z-index for layering multiple overlays. Higher values appear on top of lower values."
+    )
+
+
+class ImageOverlayRequest(BaseModel):
+    """
+    Request model for overlaying images on top of a base image.
+    
+    This model represents a request to overlay one or more images onto a base image,
+    with control over position, size, rotation, and opacity.
+    """
+    base_image_url: AnyUrl = Field(
+        description="URL of the base image on which overlays will be placed."
+    )
+    overlay_images: List[OverlayImagePosition] = Field(
+        ...,
+        min_items=1,
+        description="List of overlay images with their positioning information."
+    )
+    output_format: Optional[str] = Field(
+        default="png",
+        description="Output image format (e.g., 'png', 'jpg', 'webp'). Default is 'png'."
+    )
+    output_quality: Optional[int] = Field(
+        default=90,
+        ge=1,
+        le=100,
+        description="Output image quality for lossy formats like JPEG (1-100). Default is 90."
+    )
+    output_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Width of the output image in pixels. If not specified, the base image width is used."
+    )
+    output_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Height of the output image in pixels. If not specified, the base image height is used."
+    )
+    maintain_aspect_ratio: Optional[bool] = Field(
+        default=True,
+        description="Whether to maintain the aspect ratio when resizing the output image."
+    )
+
+
+class ImageOverlayResult(BaseModel):
+    """
+    Result model for the image overlay operation.
+    """
+    image_url: AnyUrl = Field(
+        description="URL to the resulting image with overlays."
+    )
+    width: int = Field(
+        description="Width of the output image in pixels."
+    )
+    height: int = Field(
+        description="Height of the output image in pixels."
+    )
+    format: str = Field(
+        description="Format of the output image (e.g., 'png', 'jpg')."
+    )
+    storage_path: str = Field(
+        description="Storage path of the image in S3."
+    )
+
+
 class VideoConcatenateRequest(BaseModel):
     """
     Request model for concatenating multiple videos.

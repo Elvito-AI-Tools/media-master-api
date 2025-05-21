@@ -8,6 +8,8 @@ This section documents all image-related endpoints provided by the Media Master 
 |----------|--------|-------------|
 | [/v1/image/to-video](./image-to-video.md) | POST | Convert an image to a video with optional audio and captions |
 | [/v1/image/to-video/{job_id}](./image-to-video.md#get-job-status) | GET | Get the status of an image-to-video job |
+| [/v1/image/add-overlay-image](./image-overlay.md) | POST | Overlay one or more images on top of a base image |
+| [/v1/image/add-overlay-image/{job_id}](./image-overlay.md#check-image-overlay-job-status) | GET | Get the status of an image overlay job |
 
 ## Common Use Cases
 
@@ -23,6 +25,15 @@ This is particularly useful for:
 - Presentations
 - Digital signage
 - Educational content
+
+### Image Composition with Overlays
+
+The image overlay endpoint allows you to create composite images by combining multiple images:
+- Add logos or watermarks to images
+- Create dynamic image templates
+- Generate marketing materials and collages
+- Apply visual effects like rotation and transparency
+- Control layering through z-index values
 
 ### Advanced Audio Features
 
