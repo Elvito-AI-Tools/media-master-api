@@ -16,11 +16,11 @@ A powerful API for generating media content. This project provides asynchronous 
 - Media transcription using Whisper
 - Videos concatenation
 - Add audio to videos with volume control and length matching
-- Secure storage of generated media in AWS S3
+- Secure storage of generated media in S3
 
 ## Prerequisites
 
-- AWS S3 account and credentials
+- S3 account and credentials
 - Docker Desktop installed, you can install it from here: https://www.docker.com/products/docker-desktop/
 
 ## Installation
@@ -38,7 +38,7 @@ cd media-master-api
 cp .env.example .env
 ```
 
-3. Add your API_KEY and AWS credentials to the .env file:
+3. Add your API_KEY and S3 credentials to the .env file:
 
 ```bash
 # S3 configuration
@@ -47,6 +47,9 @@ S3_SECRET_KEY=your_s3_secret_key_here
 S3_BUCKET_NAME=your_s3_bucket_name_here
 S3_REGION=your_s3_region_here
 S3_ENDPOINT=your_s3_endpoint_here
+
+MINIO_ROOT_USER=minio
+MINIO_ROOT_PASSWORD=12345678
 ```
 
 4. Run and build the docker compose:
