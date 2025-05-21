@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables again and log them
 logger.info("Loaded environment variables")
-logger.info(f"AWS_REGION: {os.environ.get('AWS_REGION', 'Not set')}")
-logger.info(f"AWS_BUCKET_NAME: {os.environ.get('AWS_BUCKET_NAME', 'Not set')}")
+logger.info(f"AWS_REGION: {os.environ.get('S3_REGION', 'Not set')}")
+logger.info(f"AWS_BUCKET_NAME: {os.environ.get('S3_BUCKET_NAME', 'Not set')}")
 logger.info(f"LOG_LEVEL: {os.environ.get('LOG_LEVEL', 'Not set')}")
 logger.info(f"DEBUG: {os.environ.get('DEBUG', 'Not set')}")
 logger.info(f"KOKORO_API_URL: {os.environ.get('KOKORO_API_URL', 'http://kokoro-tts:8880/v1/audio/speech')}")
