@@ -49,7 +49,7 @@ S3_ACCESS_KEY=your_s3_access_key_here
 S3_SECRET_KEY=your_s3_secret_key_here
 S3_BUCKET_NAME=your_s3_bucket_name_here
 S3_REGION=your_s3_region_here
-S3_ENDPOINT=your_s3_endpoint_here
+S3_ENDPOINT_URL=your_s3_endpoint_here
 
 # IF you are using local hosted minio
 MINIO_ROOT_USER=minio
