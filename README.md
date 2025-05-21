@@ -41,6 +41,9 @@ cp .env.example .env
 3. Add your API_KEY and S3 credentials to the .env file:
 
 ```bash
+
+API_KEY=your_secret_api_key_here
+
 # S3 configuration
 S3_ACCESS_KEY=your_s3_access_key_here
 S3_SECRET_KEY=your_s3_secret_key_here
