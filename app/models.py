@@ -470,6 +470,149 @@ class ImageOverlayResult(BaseModel):
     )
 
 
+class OverlayVideoPosition(BaseModel):
+    """
+    Position information for an overlay video.
+    """
+    url: AnyUrl = Field(
+        description="URL of the overlay video to be placed on the base image."
+    )
+    x: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Horizontal position (0.0 to 1.0) where 0.0 is the left edge and 1.0 is the right edge."
+    )
+    y: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Vertical position (0.0 to 1.0) where 0.0 is the top edge and 1.0 is the bottom edge."
+    )
+    width: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Width of the overlay video relative to the base image width (0.0 to 1.0). If not specified, the original aspect ratio is maintained."
+    )
+    height: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Height of the overlay video relative to the base image height (0.0 to 1.0). If not specified, the original aspect ratio is maintained."
+    )
+    start_time: Optional[float] = Field(
+        default=0.0,
+        ge=0.0,
+        description="Start time in seconds when the overlay video should begin playing."
+    )
+    end_time: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="End time in seconds when the overlay video should stop playing. If not specified, plays until the end of the video or base video duration."
+    )
+    loop: Optional[bool] = Field(
+        default=False,
+        description="Whether to loop the overlay video if it's shorter than the base video duration."
+    )
+    opacity: Optional[float] = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Opacity of the overlay video (0.0 to 1.0) where 0.0 is fully transparent and 1.0 is fully opaque."
+    )
+    z_index: Optional[int] = Field(
+        default=0,
+        description="Z-index for layering multiple overlays. Higher values appear on top of lower values."
+    )
+    volume: Optional[float] = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Volume level of the overlay video audio (0.0 to 1.0). Default is 0.0 (muted)."
+    )
+
+
+class VideoOverlayRequest(BaseModel):
+    """
+    Request model for overlaying videos on top of a base image.
+    
+    This model represents a request to overlay one or more videos onto a base image,
+    creating a dynamic video composition with control over position, size, timing, and audio.
+    """
+    base_image_url: AnyUrl = Field(
+        description="URL of the base image on which video overlays will be placed."
+    )
+    overlay_videos: List[OverlayVideoPosition] = Field(
+        ...,
+        min_items=1,
+        description="List of overlay videos with their positioning and timing information."
+    )
+    output_duration: Optional[float] = Field(
+        default=None,
+        gt=0,
+        le=300,
+        description="Duration of the output video in seconds. If not specified, uses the longest overlay video duration."
+    )
+    frame_rate: Optional[int] = Field(
+        default=30,
+        ge=15,
+        le=60,
+        description="Frame rate of the output video. Default is 30 fps."
+    )
+    output_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Width of the output video in pixels. If not specified, the base image width is used."
+    )
+    output_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Height of the output video in pixels. If not specified, the base image height is used."
+    )
+    maintain_aspect_ratio: Optional[bool] = Field(
+        default=True,
+        description="Whether to maintain the aspect ratio when resizing the output video."
+    )
+    background_audio_url: Optional[AnyUrl] = Field(
+        default=None,
+        description="URL of background audio to add to the video. Can be a direct audio file or YouTube URL."
+    )
+    background_audio_volume: Optional[float] = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        description="Volume level for the background audio track (0.0 to 1.0)."
+    )
+
+
+class VideoOverlayResult(BaseModel):
+    """
+    Result model for the video overlay operation.
+    """
+    video_url: AnyUrl = Field(
+        description="URL to the resulting video with overlays."
+    )
+    width: int = Field(
+        description="Width of the output video in pixels."
+    )
+    height: int = Field(
+        description="Height of the output video in pixels."
+    )
+    duration: float = Field(
+        description="Duration of the output video in seconds."
+    )
+    frame_rate: int = Field(
+        description="Frame rate of the output video."
+    )
+    has_audio: bool = Field(
+        description="Whether the output video has audio."
+    )
+    storage_path: str = Field(
+        description="Storage path of the video in S3."
+    )
+
+
 class VideoConcatenateRequest(BaseModel):
     """
     Request model for concatenating multiple videos.

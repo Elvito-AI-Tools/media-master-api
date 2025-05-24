@@ -76,6 +76,7 @@ For detailed API documentation, we've created a comprehensive documentation set 
   - [Image Routes Overview](./docs/image/README.md)
   - [Image to Video Conversion](./docs/image/image-to-video.md)
   - [Image Overlay](./docs/image/image-overlay.md)
+  - [Video Overlay on Image](./docs/image/video-overlay.md)
 - **Audio Processing**:
   - [Audio Routes Overview](./docs/audio/README.md)
   - [Text to Speech Conversion](./docs/audio/text-to-speech.md)
@@ -425,4 +426,66 @@ Response (when completed):
 }
 ```
 </details>
+
+### Video Overlay on Image
+
+Create dynamic video content by overlaying animated videos on static images:
+
+```bash
+# Create a video overlay job
+curl -X POST "http://localhost:8000/v1/image/add-video-overlay" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "base_image_url": "https://example.com/background.jpg",
+    "overlay_videos": [
+      {
+        "url": "https://example.com/animated-logo.mp4",
+        "x": 0.85,
+        "y": 0.85,
+        "width": 0.2,
+        "opacity": 0.9,
+        "start_time": 0.0,
+        "end_time": 10.0,
+        "volume": 0.0
+      }
+    ],
+    "output_duration": 10.0,
+    "frame_rate": 30,
+    "background_audio_url": "https://example.com/music.mp3",
+    "background_audio_volume": 0.2
+  }'
+
+# Response
+{
+  "job_id": "video-overlay-12345"
+}
+
+# Check job status
+curl -X GET "http://localhost:8000/v1/image/add-video-overlay/video-overlay-12345" \
+  -H "X-API-Key: your-api-key"
+
+# Response when completed
+{
+  "job_id": "video-overlay-12345",
+  "status": "completed",
+  "result": {
+    "video_url": "https://your-bucket.s3.region.amazonaws.com/video-overlay-results/result.mp4",
+    "width": 1920,
+    "height": 1080,
+    "duration": 10.0,
+    "frame_rate": 30,
+    "has_audio": true
+  }
+}
+```
+
+### Video Overlay Features
+
+- **Multiple Video Overlays**: Layer multiple videos with precise timing control
+- **Flexible Positioning**: Position overlays anywhere on the base image using relative coordinates
+- **Visual Effects**: Control opacity, rotation, and layering with z-index
+- **Audio Mixing**: Combine overlay video audio with background music
+- **Timing Control**: Set start/end times for each overlay with looping support
+- **Dynamic Compositions**: Create picture-in-picture effects and animated watermarks
 

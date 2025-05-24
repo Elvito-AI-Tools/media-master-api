@@ -1,60 +1,53 @@
 # Image Routes Documentation
 
-This section documents all image-related endpoints provided by the Media Master API.
+This directory contains documentation for all image-related endpoints in the Media Master API.
 
 ## Available Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| [/v1/image/to-video](./image-to-video.md) | POST | Convert an image to a video with optional audio and captions |
-| [/v1/image/to-video/{job_id}](./image-to-video.md#get-job-status) | GET | Get the status of an image-to-video job |
-| [/v1/image/add-overlay-image](./image-overlay.md) | POST | Overlay one or more images on top of a base image |
-| [/v1/image/add-overlay-image/{job_id}](./image-overlay.md#check-image-overlay-job-status) | GET | Get the status of an image overlay job |
+### Image to Video Conversion
+- **Create Job**: `POST /v1/image/image-to-video`
+- **Check Status**: `GET /v1/image/image-to-video/{job_id}`
+
+### Image Overlay
+- **Create Job**: `POST /v1/image/add-overlay-image`
+- **Check Status**: `GET /v1/image/add-overlay-image/{job_id}`
+
+### Video Overlay on Image
+- **Create Job**: `POST /v1/image/add-video-overlay`
+- **Check Status**: `GET /v1/image/add-video-overlay/{job_id}`
 
 ## Common Use Cases
 
-### Converting a Static Image to an Animated Video
+### Image to Video Conversion
+Convert static images into dynamic videos with customizable duration, effects, and audio integration. Perfect for creating social media content, presentations, and animated displays.
 
-You can use the image-to-video endpoint to create engaging content from static images by adding:
-- Ken Burns zoom effect
-- Background audio (either from a URL or text-to-speech)
-- Automatic captions
+### Image Overlay
+Create composite images by overlaying multiple images with precise positioning, sizing, and visual effects. Ideal for adding logos, watermarks, creating templates, and building complex visual compositions.
 
-This is particularly useful for:
-- Social media content
-- Presentations
-- Digital signage
-- Educational content
+### Video Overlay on Image
+Transform static images into dynamic video content by overlaying animated videos with precise timing and positioning control. Revolutionary for creating:
+- Dynamic marketing materials with animated elements
+- Interactive presentations with video demonstrations
+- Social media content with motion graphics
+- Educational materials with video explanations
+- Digital signage with mixed static and dynamic content
 
-### Image Composition with Overlays
+## Advanced Audio Features
 
-The image overlay endpoint allows you to create composite images by combining multiple images:
-- Add logos or watermarks to images
-- Create dynamic image templates
-- Generate marketing materials and collages
-- Apply visual effects like rotation and transparency
-- Control layering through z-index values
-
-### Advanced Audio Features
-
-The image-to-video endpoint includes sophisticated audio processing capabilities:
-
-- **Dual Audio Sources**: Combine narrator audio with background music
-- **Text-to-Speech Integration**: Generate narrator audio directly from text
-- **YouTube Support**: Use YouTube links as background music sources
-- **Volume Control**: Adjust volume levels independently for narrator and background music
-- **Format Compatibility**: Automatic handling of different audio formats and sample rates
-- **Fallback Mechanisms**: Multiple mixing methods ensure reliable audio processing
-
-These features allow you to create professional-quality videos with rich audio experiences without needing specialized editing software.
+The image-to-video endpoint supports sophisticated audio integration:
+- **Dual Audio Sources**: Combine background music with text-to-speech narration
+- **Text-to-Speech Integration**: Convert text descriptions into natural-sounding speech
+- **Volume Control**: Fine-tune audio levels for optimal balance
+- **Audio Synchronization**: Automatically sync audio with video duration
 
 ## Error Handling
 
 All image endpoints follow standard HTTP status codes:
-- 200: Successful operation
-- 400: Bad request (invalid parameters)
-- 401: Unauthorized (invalid API key)
-- 404: Resource not found
-- 500: Internal server error
+
+- **200**: Successful operation
+- **400**: Bad request (invalid parameters or malformed JSON)
+- **401**: Unauthorized (missing or invalid API key)
+- **404**: Resource not found (invalid job ID or endpoint)
+- **500**: Internal server error (processing failure or system issues)
 
 Detailed error messages are provided in the response body. 
