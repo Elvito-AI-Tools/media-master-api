@@ -7,7 +7,7 @@ A powerful API for generating media content. This project provides asynchronous 
 
 1. It saves your time and money by using our API to generate long-form videos, audio and more, with few simple API calls you can generate high-quality media content.
 
-2. Replace expensive services like JSON2Video, Creatomate, etc. with this API to generate high-quality media content.
+2. Replace expensive services like JSON2Video, Creatomate, Eleven Labs etc. with this API to generate high-quality media content.
 
 ## Features
 
