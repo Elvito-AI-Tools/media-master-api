@@ -76,7 +76,8 @@ async def get_video_metadata(video_path: str) -> Dict[str, Any]:
             "width": None,
             "height": None,
             "codec": None,
-            "frame_rate": None
+            "frame_rate": None,
+            "has_audio": False
         }
         
         # Extract format information
@@ -103,6 +104,8 @@ async def get_video_metadata(video_path: str) -> Dict[str, Any]:
         # Get video stream info if available
         if "streams" in info:
             video_stream_found = False
+            audio_stream_found = False
+            
             for stream in info["streams"]:
                 if stream.get("codec_type") == "video":
                     video_stream_found = True
@@ -132,8 +135,12 @@ async def get_video_metadata(video_path: str) -> Dict[str, Any]:
                                 metadata["frame_rate"] = round(float(frame_rate_str), 2)
                         except (ValueError, ZeroDivisionError, TypeError):
                             logger.warning(f"Could not parse frame rate: {stream.get('avg_frame_rate')}")
-                    
-                    break
+                
+                elif stream.get("codec_type") == "audio":
+                    audio_stream_found = True
+                    logger.debug(f"Found audio stream: {stream}")
+            
+            metadata["has_audio"] = audio_stream_found
             
             if not video_stream_found:
                 logger.error(f"No video stream found in file: {video_path}")
@@ -388,7 +395,7 @@ def build_ffmpeg_filter_complex(
     
     # Collect audio from overlay videos
     for i, overlay in enumerate(sorted_overlays):
-        if overlay['volume'] > 0:
+        if overlay['volume'] > 0 and overlay['metadata'].get('has_audio', False):
             input_index = i + 1
             volume_filter = f"[{input_index}:a]volume={overlay['volume']}[aud{i}]"
             filter_parts.append(volume_filter)

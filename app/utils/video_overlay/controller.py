@@ -84,6 +84,11 @@ async def process_video_overlay(params: Dict[str, Any]) -> Dict[str, Any]:
             )
             processed_overlays.append(processed_overlay)
             
+            # Log audio information for debugging
+            has_audio = processed_overlay['metadata'].get('has_audio', False)
+            volume = processed_overlay.get('volume', 0.0)
+            logger.info(f"Overlay video: has_audio={has_audio}, volume={volume}, will_use_audio={has_audio and volume > 0}")
+            
             # Calculate effective duration for this overlay
             overlay_duration = processed_overlay['metadata'].get('duration', 0.0)
             start_time = processed_overlay.get('start_time', 0.0)
@@ -147,7 +152,7 @@ async def process_video_overlay(params: Dict[str, Any]) -> Dict[str, Any]:
         ])
         
         # Add audio mapping if there are audio inputs
-        has_audio = any(overlay['volume'] > 0 for overlay in processed_overlays) or background_audio_path
+        has_audio = any(overlay['volume'] > 0 and overlay['metadata'].get('has_audio', False) for overlay in processed_overlays) or background_audio_path
         if has_audio:
             cmd.extend(["-map", "[aout]"])
         

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 import requests
 import aiohttp
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from PIL import Image
 from fastapi import HTTPException
 
@@ -54,16 +54,74 @@ async def download_image(url: str, temp_dir: str = "temp") -> str:
         file_extension = _get_file_extension_from_url(url) or ".jpg"
         temp_file_path = os.path.join(temp_dir, f"image_{uuid.uuid4().hex}{file_extension}")
         
-        # Parse URL to check if it's from our S3 bucket
+        # Parse URL to check if it's from our S3 bucket or Minio
         parsed_url = urlparse(url)
         hostname = parsed_url.netloc
         path = parsed_url.path
         
-        # Check if URL is from our S3 bucket
-        bucket_name = os.environ.get("AWS_BUCKET_NAME", "")
+        # Check if URL is from our internal systems
+        is_from_minio = "minio" in hostname
+        bucket_name = os.environ.get("S3_BUCKET_NAME", "")
         is_from_our_s3 = bucket_name and bucket_name in hostname
         
-        if is_from_our_s3:
+        if is_from_minio:
+            # Use storage_manager for Minio requests instead of direct HTTP requests
+            logger.info(f"Detected Minio URL, using storage_manager to download image: {url}")
+            
+            # Extract the object key from the path
+            # Remove bucket name from path if present
+            object_path = path.lstrip('/')
+            if object_path.startswith(f"{bucket_name}/"):
+                object_key = object_path[len(bucket_name)+1:]
+            else:
+                object_key = object_path
+            
+            # URL decode the object key to handle spaces and special characters
+            object_key = unquote(object_key)
+                
+            logger.info(f"Extracting object key from path: {object_key}")
+            
+            from app.utils.storage import storage_manager
+            
+            # Download using storage_manager
+            try:
+                storage_manager.client.fget_object(
+                    bucket_name=storage_manager.bucket_name,
+                    object_name=object_key,
+                    file_path=temp_file_path
+                )
+                logger.info(f"Successfully downloaded image from Minio: {temp_file_path}")
+            except Exception as e:
+                logger.error(f"Error using storage_manager to download image: {e}")
+                # If URL has a presigned signature, try direct HTTP download as fallback
+                if '?' in url:
+                    logger.info("Trying direct HTTP download with presigned URL as fallback")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as response:
+                            if response.status != 200:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Failed to download image: HTTP {response.status}"
+                                )
+                            
+                            # Check if the response is an image
+                            content_type = response.headers.get('Content-Type', '')
+                            if not content_type.startswith('image/'):
+                                logger.error(f"URL does not point to an image. Content-Type: {content_type}")
+                                raise HTTPException(
+                                    status_code=400, 
+                                    detail=f"URL does not point to an image. Content-Type: {content_type}"
+                                )
+                            
+                            # Read image data and save to file
+                            image_data = await response.read()
+                            with open(temp_file_path, "wb") as f:
+                                f.write(image_data)
+                    
+                    logger.info(f"Successfully downloaded image with presigned URL: {temp_file_path}")
+                else:
+                    raise
+        elif is_from_our_s3:
             # Import here to avoid circular imports
             from app.services.s3 import s3_service
             
