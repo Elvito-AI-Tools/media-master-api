@@ -164,23 +164,13 @@ class AddAudioService:
             
             # Set the options based on the match_length parameter
             if match_length == "audio":
-                # Audio will determine the output duration
-                if audio_duration < video_duration:
-                    # Loop video to match audio duration
-                    cmd = self._build_ffmpeg_loop_video_command(
-                        video_path, audio_path, output_path, 
-                        video_volume, audio_volume, audio_duration,
-                        has_audio_stream
-                    )
-                    final_duration = audio_duration
-                else:
-                    # Audio is longer or equal, trim to video length
-                    cmd = self._build_ffmpeg_standard_command(
-                        video_path, audio_path, output_path, 
-                        video_volume, audio_volume,
-                        has_audio_stream
-                    )
-                    final_duration = video_duration
+                # Audio will determine the output duration - always loop video to match audio
+                cmd = self._build_ffmpeg_loop_video_command(
+                    video_path, audio_path, output_path, 
+                    video_volume, audio_volume, audio_duration,
+                    has_audio_stream
+                )
+                final_duration = audio_duration
             else:  # match_length == "video"
                 # Video will determine the output duration
                 if video_duration > audio_duration:
