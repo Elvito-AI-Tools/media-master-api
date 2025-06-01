@@ -5,10 +5,12 @@ import os
 import logging
 import tempfile
 import subprocess
+import requests
 from urllib.parse import urlparse
 from typing import Tuple, Optional
 
 from app.services.s3 import s3_service
+from app.utils.youtube import is_youtube_url
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ async def download_media_file(media_url: str, temp_dir: str = "temp") -> Tuple[s
     try:
         if is_from_minio:
             # Use storage_manager for Minio requests instead of direct HTTP requests
-            logger.info(f"Detected Minio URL, using storage_manager to download: {media_url}")
+            logger.info(f"Detected Minio URL, using storage_manager to download media: {media_url}")
             
             # Extract the object key from the path
             # Remove bucket name from path if present
@@ -82,20 +84,19 @@ async def download_media_file(media_url: str, temp_dir: str = "temp") -> Tuple[s
                     object_name=object_key,
                     file_path=local_file_path
                 )
-                logger.info(f"Successfully downloaded file from Minio: {local_file_path}")
+                logger.info(f"Successfully downloaded media from Minio: {local_file_path}")
             except Exception as e:
-                logger.error(f"Error using storage_manager to download: {e}")
+                logger.error(f"Error using storage_manager to download media: {e}")
                 # If URL has a presigned signature, try direct HTTP download as fallback
                 if '?' in media_url:
                     logger.info("Trying direct HTTP download with presigned URL as fallback")
-                    import requests
                     response = requests.get(media_url, timeout=30)
                     response.raise_for_status()
                     
                     with open(local_file_path, 'wb') as f:
                         f.write(response.content)
                     
-                    logger.info(f"Successfully downloaded file with presigned URL: {local_file_path}")
+                    logger.info(f"Successfully downloaded media with presigned URL: {local_file_path}")
                 else:
                     raise
         elif is_from_our_s3:
@@ -106,9 +107,20 @@ async def download_media_file(media_url: str, temp_dir: str = "temp") -> Tuple[s
             # Use S3 service to download the file
             from app.services.s3 import s3_service
             local_file_path = await s3_service.download_file(object_key, local_file_path)
-        else:
-            # Use yt-dlp for external URLs
+        elif is_youtube_url(media_url):
+            # Use yt-dlp for YouTube URLs
+            logger.info(f"Detected YouTube URL, using yt-dlp: {media_url}")
             download_with_ytdlp(media_url, local_file_path)
+        else:
+            # Use direct HTTP download for external URLs (like Cloudinary)
+            logger.info(f"Detected external URL, using direct HTTP download: {media_url}")
+            response = requests.get(media_url, timeout=30)
+            response.raise_for_status()
+            
+            with open(local_file_path, 'wb') as f:
+                f.write(response.content)
+            
+            logger.info(f"Successfully downloaded media via HTTP: {local_file_path}")
             
         logger.info(f"Media downloaded successfully to {local_file_path}")
         return local_file_path, file_extension
